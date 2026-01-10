@@ -482,7 +482,7 @@
             document.getElementById('sellOrdersList').innerHTML = '<div class="loading">Loading...</div>';
 
             try {
-                const response = await fetch(`https://bitjita.com/api/market/item/${itemId}`);
+                const response = await fetch(`/api/market/item/${itemId}`);
 
                 if (!response.ok) {
                     throw new Error(`API returned status ${response.status}`);

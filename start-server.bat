@@ -9,11 +9,11 @@ echo.
 REM Try Python 3 first
 python --version >nul 2>&1
 if %errorlevel% == 0 (
-    echo Starting web server with Python...
+    echo Starting CORS proxy server with Python...
     echo Open your browser to: http://localhost:8000
     echo.
     start http://localhost:8000
-    python -m http.server 8000
+    python proxy-server.py
     goto :eof
 )
 

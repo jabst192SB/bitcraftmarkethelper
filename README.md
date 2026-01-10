@@ -10,22 +10,13 @@ A lightweight web application for browsing Bitcraft market data with real-time A
 3. Keep the command window open while using the app
 4. Press `Ctrl+C` in the command window when done
 
-### Method 2: Manual Python Server
+### Method 2: Manual Python Server (Recommended)
 If you have Python installed:
 1. Open Command Prompt or PowerShell in this folder
-2. Run: `python -m http.server 8000`
+2. Run: `python proxy-server.py`
 3. Open browser to: http://localhost:8000
 
-### Method 3: Manual Node.js Server
-If you have Node.js installed:
-1. Open Command Prompt or PowerShell in this folder
-2. Run: `npx http-server -p 8080`
-3. Open browser to: http://localhost:8080
-
-### Method 4: Use VSCode Live Server
-If you have Visual Studio Code:
-1. Install the "Live Server" extension
-2. Right-click `index.html` and select "Open with Live Server"
+**Note**: The proxy server is required to bypass CORS restrictions from the Bitjita API.
 
 ## 📋 Features
 
@@ -47,15 +38,21 @@ If you have Visual Studio Code:
 
 ### "Failed to load items.json"
 This happens when opening `index.html` directly without a web server.
-**Solution**: Use one of the methods above to start a local web server.
+**Solution**: Use the `start-server.bat` or run `python proxy-server.py`.
+
+### CORS Error / API requests failing
+The Bitjita API doesn't allow direct browser requests due to CORS restrictions.
+**Solution**: You MUST use the proxy server (`proxy-server.py`) instead of a basic HTTP server. The `start-server.bat` file automatically uses the correct server.
 
 ### Batch file doesn't work
-Make sure you have either Python or Node.js installed on your system.
+Make sure you have Python installed on your system.
+**Download**: https://www.python.org/downloads/
 
 ### Port already in use
-If port 8000 or 8080 is already in use, change the port number in the command:
-- Python: `python -m http.server 8001`
-- Node.js: `npx http-server -p 8081`
+If port 8000 is already in use, you can edit `proxy-server.py` and change the port number in the last line:
+```python
+run_server(8001)  # Change 8000 to 8001 or any available port
+```
 
 ## 📖 Usage
 
