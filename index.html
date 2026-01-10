@@ -106,6 +106,20 @@
             margin-left: 10px;
         }
 
+        .typeahead-item-rarity {
+            font-size: 12px;
+            margin-left: 10px;
+            font-weight: 500;
+        }
+
+        .rarity-default { color: #9ca3af; }
+        .rarity-common { color: #9ca3af; }
+        .rarity-uncommon { color: #4ade80; }
+        .rarity-rare { color: #60a5fa; }
+        .rarity-epic { color: #a78bfa; }
+        .rarity-legendary { color: #fb923c; }
+        .rarity-mythic { color: #f87171; }
+
         .region-filter {
             display: flex;
             align-items: center;
@@ -377,10 +391,14 @@
             }
         }
 
-        // Populate tier dropdown with unique tiers
+        // Populate tier dropdown with unique tiers from compendium items only
         function populateTierDropdown() {
             const tierSet = new Set();
-            allItems.forEach(item => tierSet.add(item.tier));
+            allItems.forEach(item => {
+                if (item.compendiumEntry === true) {
+                    tierSet.add(item.tier);
+                }
+            });
             const tiers = Array.from(tierSet).sort((a, b) => a - b);
 
             const tierFilter = document.getElementById('tierFilter');
@@ -397,8 +415,9 @@
         const typeaheadResults = document.getElementById('typeaheadResults');
         const tierFilter = document.getElementById('tierFilter');
 
-        searchInput.addEventListener('input', function() {
-            const searchTerm = this.value.toLowerCase().trim();
+        // Function to perform search and display typeahead results
+        function performSearch() {
+            const searchTerm = searchInput.value.toLowerCase().trim();
 
             if (searchTerm.length === 0) {
                 typeaheadResults.style.display = 'none';
@@ -407,9 +426,10 @@
 
             const selectedTier = tierFilter.value;
 
-            // Filter items by search term and tier
+            // Filter items by search term, compendium entry, and tier
             let filteredItems = allItems.filter(item =>
-                item.name.toLowerCase().includes(searchTerm)
+                item.name.toLowerCase().includes(searchTerm) &&
+                item.compendiumEntry === true
             );
 
             // Apply tier filter if not "all"
@@ -419,11 +439,29 @@
                 );
             }
 
-            // Sort by tier ascending, then by name
+            // Sort by tier ascending, then by rarity order
+            const rarityOrder = {
+                'Default': 0,
+                'Common': 1,
+                'Uncommon': 2,
+                'Rare': 3,
+                'Epic': 4,
+                'Legendary': 5,
+                'Mythic': 6
+            };
+
             filteredItems.sort((a, b) => {
+                // First sort by tier
                 if (a.tier !== b.tier) {
                     return a.tier - b.tier;
                 }
+                // Then sort by rarity
+                const rarityA = rarityOrder[a.rarityStr] || 0;
+                const rarityB = rarityOrder[b.rarityStr] || 0;
+                if (rarityA !== rarityB) {
+                    return rarityA - rarityB;
+                }
+                // Finally sort by name
                 return a.name.localeCompare(b.name);
             });
 
@@ -432,12 +470,17 @@
 
             // Display results
             if (filteredItems.length > 0) {
-                typeaheadResults.innerHTML = filteredItems.map(item => `
+                typeaheadResults.innerHTML = filteredItems.map(item => {
+                    const rarity = item.rarityStr || 'Common';
+                    const rarityClass = rarity.toLowerCase();
+                    return `
                     <div class="typeahead-item" data-item-id="${item.id}">
                         <span class="typeahead-item-name">${item.name}</span>
                         <span class="typeahead-item-tier">Tier ${item.tier}</span>
+                        <span class="typeahead-item-rarity rarity-${rarityClass}">${rarity}</span>
                     </div>
-                `).join('');
+                `;
+                }).join('');
                 typeaheadResults.style.display = 'block';
 
                 // Add click handlers
@@ -453,6 +496,15 @@
             } else {
                 typeaheadResults.innerHTML = '<div class="typeahead-item">No items found</div>';
                 typeaheadResults.style.display = 'block';
+            }
+        }
+
+        searchInput.addEventListener('input', performSearch);
+
+        // Reopen typeahead when clicking back into search box
+        searchInput.addEventListener('focus', function() {
+            if (this.value.trim().length > 0) {
+                performSearch();
             }
         });
 
@@ -482,7 +534,7 @@
             document.getElementById('sellOrdersList').innerHTML = '<div class="loading">Loading...</div>';
 
             try {
-                const response = await fetch(`https://bitjita.com/api/market/item/${itemId}`);
+                const response = await fetch(`/api/market/item/${itemId}`);
 
                 if (!response.ok) {
                     throw new Error(`API returned status ${response.status}`);
