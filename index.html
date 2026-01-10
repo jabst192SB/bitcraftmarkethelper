@@ -415,8 +415,9 @@
         const typeaheadResults = document.getElementById('typeaheadResults');
         const tierFilter = document.getElementById('tierFilter');
 
-        searchInput.addEventListener('input', function() {
-            const searchTerm = this.value.toLowerCase().trim();
+        // Function to perform search and display typeahead results
+        function performSearch() {
+            const searchTerm = searchInput.value.toLowerCase().trim();
 
             if (searchTerm.length === 0) {
                 typeaheadResults.style.display = 'none';
@@ -495,6 +496,15 @@
             } else {
                 typeaheadResults.innerHTML = '<div class="typeahead-item">No items found</div>';
                 typeaheadResults.style.display = 'block';
+            }
+        }
+
+        searchInput.addEventListener('input', performSearch);
+
+        // Reopen typeahead when clicking back into search box
+        searchInput.addEventListener('focus', function() {
+            if (this.value.trim().length > 0) {
+                performSearch();
             }
         });
 
