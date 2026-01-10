@@ -464,13 +464,17 @@
 
             // Display results
             if (filteredItems.length > 0) {
-                typeaheadResults.innerHTML = filteredItems.map(item => `
+                typeaheadResults.innerHTML = filteredItems.map(item => {
+                    const rarity = item.rarityStr || 'Common';
+                    const rarityClass = rarity.toLowerCase();
+                    return `
                     <div class="typeahead-item" data-item-id="${item.id}">
                         <span class="typeahead-item-name">${item.name}</span>
                         <span class="typeahead-item-tier">Tier ${item.tier}</span>
-                        <span class="typeahead-item-rarity rarity-${item.rarityStr.toLowerCase()}">${item.rarityStr}</span>
+                        <span class="typeahead-item-rarity rarity-${rarityClass}">${rarity}</span>
                     </div>
-                `).join('');
+                `;
+                }).join('');
                 typeaheadResults.style.display = 'block';
 
                 // Add click handlers
