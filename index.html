@@ -106,6 +106,20 @@
             margin-left: 10px;
         }
 
+        .typeahead-item-rarity {
+            font-size: 12px;
+            margin-left: 10px;
+            font-weight: 500;
+        }
+
+        .rarity-default { color: #9ca3af; }
+        .rarity-common { color: #9ca3af; }
+        .rarity-uncommon { color: #4ade80; }
+        .rarity-rare { color: #60a5fa; }
+        .rarity-epic { color: #a78bfa; }
+        .rarity-legendary { color: #fb923c; }
+        .rarity-mythic { color: #f87171; }
+
         .region-filter {
             display: flex;
             align-items: center;
@@ -419,11 +433,29 @@
                 );
             }
 
-            // Sort by tier ascending, then by name
+            // Sort by tier ascending, then by rarity order
+            const rarityOrder = {
+                'Default': 0,
+                'Common': 1,
+                'Uncommon': 2,
+                'Rare': 3,
+                'Epic': 4,
+                'Legendary': 5,
+                'Mythic': 6
+            };
+
             filteredItems.sort((a, b) => {
+                // First sort by tier
                 if (a.tier !== b.tier) {
                     return a.tier - b.tier;
                 }
+                // Then sort by rarity
+                const rarityA = rarityOrder[a.rarityStr] || 0;
+                const rarityB = rarityOrder[b.rarityStr] || 0;
+                if (rarityA !== rarityB) {
+                    return rarityA - rarityB;
+                }
+                // Finally sort by name
                 return a.name.localeCompare(b.name);
             });
 
@@ -436,6 +468,7 @@
                     <div class="typeahead-item" data-item-id="${item.id}">
                         <span class="typeahead-item-name">${item.name}</span>
                         <span class="typeahead-item-tier">Tier ${item.tier}</span>
+                        <span class="typeahead-item-rarity rarity-${item.rarityStr.toLowerCase()}">${item.rarityStr}</span>
                     </div>
                 `).join('');
                 typeaheadResults.style.display = 'block';
