@@ -391,10 +391,14 @@
             }
         }
 
-        // Populate tier dropdown with unique tiers
+        // Populate tier dropdown with unique tiers from compendium items only
         function populateTierDropdown() {
             const tierSet = new Set();
-            allItems.forEach(item => tierSet.add(item.tier));
+            allItems.forEach(item => {
+                if (item.compendiumEntry === true) {
+                    tierSet.add(item.tier);
+                }
+            });
             const tiers = Array.from(tierSet).sort((a, b) => a - b);
 
             const tierFilter = document.getElementById('tierFilter');
@@ -421,9 +425,10 @@
 
             const selectedTier = tierFilter.value;
 
-            // Filter items by search term and tier
+            // Filter items by search term, compendium entry, and tier
             let filteredItems = allItems.filter(item =>
-                item.name.toLowerCase().includes(searchTerm)
+                item.name.toLowerCase().includes(searchTerm) &&
+                item.compendiumEntry === true
             );
 
             // Apply tier filter if not "all"
