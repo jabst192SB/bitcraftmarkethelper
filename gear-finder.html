@@ -90,6 +90,23 @@
             border-color: #4a9eff;
         }
 
+        select[multiple] {
+            min-height: 120px;
+            padding: 5px;
+        }
+
+        select[multiple] option {
+            padding: 8px 10px;
+            border-radius: 3px;
+            margin-bottom: 2px;
+        }
+
+        select[multiple] option:checked {
+            background: linear-gradient(#4a9eff, #4a9eff);
+            color: #1a1a1a;
+            font-weight: 600;
+        }
+
         .checkbox-group {
             display: flex;
             align-items: center;
@@ -303,15 +320,13 @@
                     </select>
                 </div>
                 <div class="filter-group">
-                    <label for="tierFilter">Tier</label>
-                    <select id="tierFilter">
-                        <option value="any">Any</option>
+                    <label for="tierFilter">Tier (Ctrl+Click for multiple)</label>
+                    <select id="tierFilter" multiple>
                     </select>
                 </div>
                 <div class="filter-group">
-                    <label for="rarityFilter">Rarity</label>
-                    <select id="rarityFilter">
-                        <option value="any">Any</option>
+                    <label for="rarityFilter">Rarity (Ctrl+Click for multiple)</label>
+                    <select id="rarityFilter" multiple>
                     </select>
                 </div>
             </div>
@@ -463,11 +478,15 @@
             }
 
             const category = document.getElementById('categoryFilter').value;
-            const tier = document.getElementById('tierFilter').value;
-            const rarity = document.getElementById('rarityFilter').value;
+            const tierSelect = document.getElementById('tierFilter');
+            const raritySelect = document.getElementById('rarityFilter');
 
-            // If all filters are "any", show info message and hide results
-            if (category === 'any' && tier === 'any' && rarity === 'any') {
+            // Get selected values as arrays
+            const selectedTiers = Array.from(tierSelect.selectedOptions).map(opt => parseInt(opt.value));
+            const selectedRarities = Array.from(raritySelect.selectedOptions).map(opt => opt.value);
+
+            // If no filters are selected, show info message and hide results
+            if (category === 'any' && selectedTiers.length === 0 && selectedRarities.length === 0) {
                 document.getElementById('infoMessage').style.display = 'block';
                 document.getElementById('resultsSection').classList.remove('active');
                 showLoading(false);
@@ -478,7 +497,7 @@
             document.getElementById('infoMessage').style.display = 'none';
 
             // Filter items based on selections
-            const itemsToFetch = filterItems(category, tier, rarity);
+            const itemsToFetch = filterItems(category, selectedTiers, selectedRarities);
 
             if (itemsToFetch.length === 0) {
                 showError('No items match the selected filters');
@@ -490,7 +509,7 @@
         }
 
         // Filter items based on category, tier, and rarity
-        function filterItems(category, tier, rarity) {
+        function filterItems(category, selectedTiers, selectedRarities) {
             let filtered = allItems.filter(item => item.compendiumEntry === true);
 
             // Filter by category
@@ -501,14 +520,14 @@
                 filtered = filtered.filter(item => CATEGORIES.includes(item.tag));
             }
 
-            // Filter by tier
-            if (tier !== 'any') {
-                filtered = filtered.filter(item => item.tier === parseInt(tier));
+            // Filter by tier (multiple selection)
+            if (selectedTiers.length > 0) {
+                filtered = filtered.filter(item => selectedTiers.includes(item.tier));
             }
 
-            // Filter by rarity
-            if (rarity !== 'any') {
-                filtered = filtered.filter(item => item.rarityStr === rarity);
+            // Filter by rarity (multiple selection)
+            if (selectedRarities.length > 0) {
+                filtered = filtered.filter(item => selectedRarities.includes(item.rarityStr));
             }
 
             return filtered;
