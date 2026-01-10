@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bitcraft Market Helper</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a1a;
+            color: #e0e0e0;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #4a9eff;
+        }
+
+        .search-section {
+            background-color: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+
+        .search-controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 10px;
+        }
+
+        .search-group {
+            flex: 1;
+            position: relative;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #b0b0b0;
+            font-size: 14px;
+        }
+
+        input[type="text"], select {
+            width: 100%;
+            padding: 10px;
+            background-color: #3a3a3a;
+            border: 1px solid #4a4a4a;
+            border-radius: 4px;
+            color: #e0e0e0;
+            font-size: 14px;
+        }
+
+        input[type="text"]:focus, select:focus {
+            outline: none;
+            border-color: #4a9eff;
+        }
+
+        .typeahead-results {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background-color: #3a3a3a;
+            border: 1px solid #4a4a4a;
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+        }
+
+        .typeahead-item {
+            padding: 10px;
+            cursor: pointer;
+            border-bottom: 1px solid #2a2a2a;
+        }
+
+        .typeahead-item:hover {
+            background-color: #4a4a4a;
+        }
+
+        .typeahead-item-name {
+            color: #e0e0e0;
+            font-weight: 500;
+        }
+
+        .typeahead-item-tier {
+            color: #4a9eff;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+
+        .region-filter {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #b0b0b0;
+        }
+
+        input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .stats-section {
+            background-color: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .stat-item {
+            background-color: #3a3a3a;
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 3px solid #4a9eff;
+        }
+
+        .stat-label {
+            color: #b0b0b0;
+            font-size: 12px;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .stat-value {
+            color: #e0e0e0;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .stat-value.price {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .copy-icon {
+            cursor: pointer;
+            font-size: 16px;
+            padding: 4px 8px;
+            background-color: #4a4a4a;
+            border-radius: 3px;
+            transition: background-color 0.2s;
+        }
+
+        .copy-icon:hover {
+            background-color: #5a5a5a;
+        }
+
+        .copy-icon:active {
+            background-color: #4a9eff;
+        }
+
+        .orders-section {
+            display: none;
+        }
+
+        .orders-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .order-column {
+            background-color: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+        }
+
+        .order-column h2 {
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #4a4a4a;
+        }
+
+        .buy-orders h2 {
+            color: #4ade80;
+        }
+
+        .sell-orders h2 {
+            color: #f87171;
+        }
+
+        .order-item {
+            background-color: #3a3a3a;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            border-left: 3px solid #4a4a4a;
+        }
+
+        .buy-orders .order-item {
+            border-left-color: #4ade80;
+        }
+
+        .sell-orders .order-item {
+            border-left-color: #f87171;
+        }
+
+        .order-claim {
+            color: #e0e0e0;
+            font-weight: 500;
+            margin-bottom: 5px;
+        }
+
+        .order-details {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+        }
+
+        .order-quantity {
+            color: #b0b0b0;
+        }
+
+        .order-price {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #4a9eff;
+            font-weight: bold;
+        }
+
+        .loading {
+            text-align: center;
+            color: #b0b0b0;
+            padding: 20px;
+        }
+
+        .error {
+            background-color: #4a2a2a;
+            color: #f87171;
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 3px solid #f87171;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .no-orders {
+            text-align: center;
+            color: #b0b0b0;
+            padding: 20px;
+            font-style: italic;
+        }
+
+        @media (max-width: 768px) {
+            .search-controls {
+                flex-direction: column;
+            }
+
+            .orders-container {
+                grid-template-columns: 1fr;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎮 Bitcraft Market Helper</h1>
+
+        <div class="search-section">
+            <div class="search-controls">
+                <div class="search-group">
+                    <label for="itemSearch">Search Item</label>
+                    <input type="text" id="itemSearch" placeholder="Start typing an item name...">
+                    <div class="typeahead-results" id="typeaheadResults"></div>
+                </div>
+                <div class="search-group">
+                    <label for="tierFilter">Tier</label>
+                    <select id="tierFilter">
+                        <option value="all">All Tiers</option>
+                    </select>
+                </div>
+            </div>
+            <div class="region-filter">
+                <input type="checkbox" id="allRegions">
+                <label for="allRegions">Show all regions (default: Solvenar - Region 4)</label>
+            </div>
+        </div>
+
+        <div class="error" id="errorMessage"></div>
+
+        <div class="stats-section" id="statsSection">
+            <h2 style="margin-bottom: 20px; color: #4a9eff;">Market Statistics</h2>
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-label">Lowest Sell</div>
+                    <div class="stat-value price">
+                        <span id="lowestSell">-</span>
+                        <span class="copy-icon" onclick="copyToClipboard('lowestSell')" title="Copy to clipboard">📋</span>
+                    </div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Highest Buy</div>
+                    <div class="stat-value price">
+                        <span id="highestBuy">-</span>
+                        <span class="copy-icon" onclick="copyToClipboard('highestBuy')" title="Copy to clipboard">📋</span>
+                    </div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Recent Sell Orders</div>
+                    <div class="stat-value">
+                        <span id="recentSellOrders">-</span>
+                    </div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Recent Buy Orders</div>
+                    <div class="stat-value">
+                        <span id="recentBuyOrders">-</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="orders-section" id="ordersSection">
+            <div class="orders-container">
+                <div class="order-column buy-orders">
+                    <h2>📈 Buy Orders</h2>
+                    <div id="buyOrdersList"></div>
+                </div>
+                <div class="order-column sell-orders">
+                    <h2>📉 Sell Orders</h2>
+                    <div id="sellOrdersList"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allItems = [];
+        let currentItemId = null;
+
+        // Load items.json on startup
+        async function loadItems() {
+            try {
+                const response = await fetch('items.json');
+                const data = await response.json();
+                allItems = data.items || [];
+
+                // Populate tier dropdown
+                populateTierDropdown();
+
+                console.log(`Loaded ${allItems.length} items`);
+            } catch (error) {
+                showError('Failed to load items.json: ' + error.message);
+            }
+        }
+
+        // Populate tier dropdown with unique tiers
+        function populateTierDropdown() {
+            const tierSet = new Set();
+            allItems.forEach(item => tierSet.add(item.tier));
+            const tiers = Array.from(tierSet).sort((a, b) => a - b);
+
+            const tierFilter = document.getElementById('tierFilter');
+            tiers.forEach(tier => {
+                const option = document.createElement('option');
+                option.value = tier;
+                option.textContent = `Tier ${tier}`;
+                tierFilter.appendChild(option);
+            });
+        }
+
+        // Handle search input
+        const searchInput = document.getElementById('itemSearch');
+        const typeaheadResults = document.getElementById('typeaheadResults');
+        const tierFilter = document.getElementById('tierFilter');
+
+        searchInput.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase().trim();
+
+            if (searchTerm.length === 0) {
+                typeaheadResults.style.display = 'none';
+                return;
+            }
+
+            const selectedTier = tierFilter.value;
+
+            // Filter items by search term and tier
+            let filteredItems = allItems.filter(item =>
+                item.name.toLowerCase().includes(searchTerm)
+            );
+
+            // Apply tier filter if not "all"
+            if (selectedTier !== 'all') {
+                filteredItems = filteredItems.filter(item =>
+                    item.tier === parseInt(selectedTier)
+                );
+            }
+
+            // Sort by tier ascending, then by name
+            filteredItems.sort((a, b) => {
+                if (a.tier !== b.tier) {
+                    return a.tier - b.tier;
+                }
+                return a.name.localeCompare(b.name);
+            });
+
+            // Limit to 10 results
+            filteredItems = filteredItems.slice(0, 10);
+
+            // Display results
+            if (filteredItems.length > 0) {
+                typeaheadResults.innerHTML = filteredItems.map(item => `
+                    <div class="typeahead-item" data-item-id="${item.id}">
+                        <span class="typeahead-item-name">${item.name}</span>
+                        <span class="typeahead-item-tier">Tier ${item.tier}</span>
+                    </div>
+                `).join('');
+                typeaheadResults.style.display = 'block';
+
+                // Add click handlers
+                typeaheadResults.querySelectorAll('.typeahead-item').forEach(el => {
+                    el.addEventListener('click', function() {
+                        const itemId = this.dataset.itemId;
+                        const itemName = this.querySelector('.typeahead-item-name').textContent;
+                        searchInput.value = itemName;
+                        typeaheadResults.style.display = 'none';
+                        fetchMarketData(itemId);
+                    });
+                });
+            } else {
+                typeaheadResults.innerHTML = '<div class="typeahead-item">No items found</div>';
+                typeaheadResults.style.display = 'block';
+            }
+        });
+
+        // Handle tier filter change
+        tierFilter.addEventListener('change', function() {
+            // Trigger search again with new filter
+            searchInput.dispatchEvent(new Event('input'));
+        });
+
+        // Close typeahead when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!searchInput.contains(e.target) && !typeaheadResults.contains(e.target)) {
+                typeaheadResults.style.display = 'none';
+            }
+        });
+
+        // Fetch market data from API
+        async function fetchMarketData(itemId) {
+            currentItemId = itemId;
+
+            // Show loading state
+            document.getElementById('statsSection').style.display = 'block';
+            document.getElementById('ordersSection').style.display = 'block';
+            document.getElementById('errorMessage').style.display = 'none';
+
+            document.getElementById('buyOrdersList').innerHTML = '<div class="loading">Loading...</div>';
+            document.getElementById('sellOrdersList').innerHTML = '<div class="loading">Loading...</div>';
+
+            try {
+                const response = await fetch(`https://bitjita.com/api/market/item/${itemId}`);
+
+                if (!response.ok) {
+                    throw new Error(`API returned status ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                // Display stats
+                displayStats(data.stats);
+
+                // Display orders
+                displayOrders(data.buyOrders || [], data.sellOrders || []);
+
+            } catch (error) {
+                showError('Failed to fetch market data: ' + error.message);
+                document.getElementById('statsSection').style.display = 'none';
+                document.getElementById('ordersSection').style.display = 'none';
+            }
+        }
+
+        // Display stats
+        function displayStats(stats) {
+            document.getElementById('lowestSell').textContent = stats.lowestSell || '-';
+            document.getElementById('highestBuy').textContent = stats.highestBuy || '-';
+            document.getElementById('recentSellOrders').textContent = stats.recentSellOrders || '-';
+            document.getElementById('recentBuyOrders').textContent = stats.recentBuyOrders || '-';
+        }
+
+        // Display orders
+        function displayOrders(buyOrders, sellOrders) {
+            const allRegionsChecked = document.getElementById('allRegions').checked;
+            const targetRegionId = 4; // Solvenar
+
+            // Filter orders by region
+            let filteredBuyOrders = allRegionsChecked ? buyOrders : buyOrders.filter(order => order.regionId === targetRegionId);
+            let filteredSellOrders = allRegionsChecked ? sellOrders : sellOrders.filter(order => order.regionId === targetRegionId);
+
+            // Display buy orders
+            const buyOrdersList = document.getElementById('buyOrdersList');
+            if (filteredBuyOrders.length === 0) {
+                buyOrdersList.innerHTML = '<div class="no-orders">No buy orders available</div>';
+            } else {
+                buyOrdersList.innerHTML = filteredBuyOrders.map(order => `
+                    <div class="order-item">
+                        <div class="order-claim">${order.claimName || 'Unknown Claim'}</div>
+                        <div class="order-details">
+                            <span class="order-quantity">Qty: ${order.quantity}</span>
+                            <span class="order-price">
+                                ${order.priceThreshold}
+                                <span class="copy-icon" onclick="copyPrice('${order.priceThreshold}')" title="Copy to clipboard">📋</span>
+                            </span>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            // Display sell orders
+            const sellOrdersList = document.getElementById('sellOrdersList');
+            if (filteredSellOrders.length === 0) {
+                sellOrdersList.innerHTML = '<div class="no-orders">No sell orders available</div>';
+            } else {
+                sellOrdersList.innerHTML = filteredSellOrders.map(order => `
+                    <div class="order-item">
+                        <div class="order-claim">${order.claimName || 'Unknown Claim'}</div>
+                        <div class="order-details">
+                            <span class="order-quantity">Qty: ${order.quantity}</span>
+                            <span class="order-price">
+                                ${order.priceThreshold}
+                                <span class="copy-icon" onclick="copyPrice('${order.priceThreshold}')" title="Copy to clipboard">📋</span>
+                            </span>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        // Handle region filter change
+        document.getElementById('allRegions').addEventListener('change', function() {
+            if (currentItemId) {
+                // Re-fetch data to apply new filter
+                fetchMarketData(currentItemId);
+            }
+        });
+
+        // Copy to clipboard function
+        function copyToClipboard(elementId) {
+            const element = document.getElementById(elementId);
+            const text = element.textContent;
+            copyPrice(text);
+        }
+
+        function copyPrice(price) {
+            navigator.clipboard.writeText(price).then(() => {
+                // Visual feedback
+                console.log('Copied to clipboard:', price);
+                // You could add a toast notification here if desired
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+            });
+        }
+
+        // Show error message
+        function showError(message) {
+            const errorElement = document.getElementById('errorMessage');
+            errorElement.textContent = message;
+            errorElement.style.display = 'block';
+        }
+
+        // Initialize app
+        loadItems();
+    </script>
+</body>
+</html>
