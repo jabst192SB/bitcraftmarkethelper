@@ -314,9 +314,8 @@
         <div class="filters-section">
             <div class="filters-row">
                 <div class="filter-group">
-                    <label for="categoryFilter">Category</label>
-                    <select id="categoryFilter">
-                        <option value="any">Any</option>
+                    <label for="categoryFilter">Category (Ctrl+Click for multiple)</label>
+                    <select id="categoryFilter" multiple>
                     </select>
                 </div>
                 <div class="filter-group">
@@ -477,16 +476,17 @@
                 currentAbortController = null;
             }
 
-            const category = document.getElementById('categoryFilter').value;
+            const categorySelect = document.getElementById('categoryFilter');
             const tierSelect = document.getElementById('tierFilter');
             const raritySelect = document.getElementById('rarityFilter');
 
             // Get selected values as arrays
+            const selectedCategories = Array.from(categorySelect.selectedOptions).map(opt => opt.value);
             const selectedTiers = Array.from(tierSelect.selectedOptions).map(opt => parseInt(opt.value));
             const selectedRarities = Array.from(raritySelect.selectedOptions).map(opt => opt.value);
 
             // If no filters are selected, show info message and hide results
-            if (category === 'any' && selectedTiers.length === 0 && selectedRarities.length === 0) {
+            if (selectedCategories.length === 0 && selectedTiers.length === 0 && selectedRarities.length === 0) {
                 document.getElementById('infoMessage').style.display = 'block';
                 document.getElementById('resultsSection').classList.remove('active');
                 showLoading(false);
@@ -497,7 +497,7 @@
             document.getElementById('infoMessage').style.display = 'none';
 
             // Filter items based on selections
-            const itemsToFetch = filterItems(category, selectedTiers, selectedRarities);
+            const itemsToFetch = filterItems(selectedCategories, selectedTiers, selectedRarities);
 
             if (itemsToFetch.length === 0) {
                 showError('No items match the selected filters');
@@ -509,14 +509,14 @@
         }
 
         // Filter items based on category, tier, and rarity
-        function filterItems(category, selectedTiers, selectedRarities) {
+        function filterItems(selectedCategories, selectedTiers, selectedRarities) {
             let filtered = allItems.filter(item => item.compendiumEntry === true);
 
-            // Filter by category
-            if (category !== 'any') {
-                filtered = filtered.filter(item => item.tag === category);
+            // Filter by category (multiple selection)
+            if (selectedCategories.length > 0) {
+                filtered = filtered.filter(item => selectedCategories.includes(item.tag));
             } else {
-                // If category is "any", only include items from the specified categories
+                // If no category selected, only include items from the specified categories
                 filtered = filtered.filter(item => CATEGORIES.includes(item.tag));
             }
 
