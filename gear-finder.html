@@ -639,10 +639,15 @@
                         tier: item.tier,
                         category: item.tag,
                         common: null,
+                        commonItemId: null,
                         uncommon: null,
+                        uncommonItemId: null,
                         rare: null,
+                        rareItemId: null,
                         epic: null,
-                        legendary: null
+                        epicItemId: null,
+                        legendary: null,
+                        legendaryItemId: null
                     };
                 }
 
@@ -656,10 +661,12 @@
                 if (sellOrders.length > 0) {
                     const lowestPrice = Math.min(...sellOrders.map(order => parseFloat(order.priceThreshold)));
                     const rarityKey = item.rarityStr.toLowerCase();
+                    const rarityIdKey = rarityKey + 'ItemId';
 
                     // Update the price if it's null or higher than the current lowest
                     if (grouped[key][rarityKey] === null || lowestPrice < grouped[key][rarityKey]) {
                         grouped[key][rarityKey] = lowestPrice;
+                        grouped[key][rarityIdKey] = item.id;
                     }
                 }
             });
@@ -685,11 +692,21 @@
                 <tr>
                     <td><a href="https://bitjita.com/market/item/${row.itemId}" target="_blank" class="item-link">${row.itemName}</a></td>
                     <td>${row.tier}</td>
-                    <td class="${row.common !== null ? 'price-cell' : 'price-na'}">${row.common !== null ? row.common : 'N/A'}</td>
-                    <td class="${row.uncommon !== null ? 'price-cell' : 'price-na'}">${row.uncommon !== null ? row.uncommon : 'N/A'}</td>
-                    <td class="${row.rare !== null ? 'price-cell' : 'price-na'}">${row.rare !== null ? row.rare : 'N/A'}</td>
-                    <td class="${row.epic !== null ? 'price-cell' : 'price-na'}">${row.epic !== null ? row.epic : 'N/A'}</td>
-                    <td class="${row.legendary !== null ? 'price-cell' : 'price-na'}">${row.legendary !== null ? row.legendary : 'N/A'}</td>
+                    <td class="${row.common !== null ? 'price-cell' : 'price-na'}">
+                        ${row.common !== null && row.commonItemId ? `<a href="https://bitjita.com/market/item/${row.commonItemId}" target="_blank" class="item-link">${row.common}</a>` : (row.common !== null ? row.common : 'N/A')}
+                    </td>
+                    <td class="${row.uncommon !== null ? 'price-cell' : 'price-na'}">
+                        ${row.uncommon !== null && row.uncommonItemId ? `<a href="https://bitjita.com/market/item/${row.uncommonItemId}" target="_blank" class="item-link">${row.uncommon}</a>` : (row.uncommon !== null ? row.uncommon : 'N/A')}
+                    </td>
+                    <td class="${row.rare !== null ? 'price-cell' : 'price-na'}">
+                        ${row.rare !== null && row.rareItemId ? `<a href="https://bitjita.com/market/item/${row.rareItemId}" target="_blank" class="item-link">${row.rare}</a>` : (row.rare !== null ? row.rare : 'N/A')}
+                    </td>
+                    <td class="${row.epic !== null ? 'price-cell' : 'price-na'}">
+                        ${row.epic !== null && row.epicItemId ? `<a href="https://bitjita.com/market/item/${row.epicItemId}" target="_blank" class="item-link">${row.epic}</a>` : (row.epic !== null ? row.epic : 'N/A')}
+                    </td>
+                    <td class="${row.legendary !== null ? 'price-cell' : 'price-na'}">
+                        ${row.legendary !== null && row.legendaryItemId ? `<a href="https://bitjita.com/market/item/${row.legendaryItemId}" target="_blank" class="item-link">${row.legendary}</a>` : (row.legendary !== null ? row.legendary : 'N/A')}
+                    </td>
                     <td>${row.category}</td>
                 </tr>
             `).join('');
