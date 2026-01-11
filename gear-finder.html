@@ -256,6 +256,16 @@
             font-style: italic;
         }
 
+        .item-link {
+            color: #4a9eff;
+            text-decoration: none;
+        }
+
+        .item-link:hover {
+            text-decoration: underline;
+            color: #6bb3ff;
+        }
+
         .no-results {
             text-align: center;
             color: #b0b0b0;
@@ -625,6 +635,7 @@
                 if (!grouped[key]) {
                     grouped[key] = {
                         itemName: item.name,
+                        itemId: item.id,
                         tier: item.tier,
                         category: item.tag,
                         common: null,
@@ -672,7 +683,7 @@
 
             resultsBody.innerHTML = data.map(row => `
                 <tr>
-                    <td>${row.itemName}</td>
+                    <td><a href="https://bitjita.com/market/item/${row.itemId}" target="_blank" class="item-link">${row.itemName}</a></td>
                     <td>${row.tier}</td>
                     <td class="${row.common !== null ? 'price-cell' : 'price-na'}">${row.common !== null ? row.common : 'N/A'}</td>
                     <td class="${row.uncommon !== null ? 'price-cell' : 'price-na'}">${row.uncommon !== null ? row.uncommon : 'N/A'}</td>
