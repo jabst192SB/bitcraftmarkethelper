@@ -120,6 +120,28 @@
             cursor: pointer;
         }
 
+        .refresh-button {
+            padding: 10px 20px;
+            background-color: #4a9eff;
+            color: #1a1a1a;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .refresh-button:hover {
+            background-color: #6bb3ff;
+        }
+
+        .refresh-button:disabled {
+            background-color: #4a4a4a;
+            color: #6b7280;
+            cursor: not-allowed;
+        }
+
         .loading-overlay {
             display: none;
             text-align: center;
@@ -339,9 +361,12 @@
                     </select>
                 </div>
             </div>
-            <div class="checkbox-group">
-                <input type="checkbox" id="allRegions">
-                <label for="allRegions">Include all regions (default: Solvenar - Region 4)</label>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div class="checkbox-group">
+                    <input type="checkbox" id="allRegions">
+                    <label for="allRegions">Include all regions (default: Solvenar - Region 4)</label>
+                </div>
+                <button id="refreshButton" class="refresh-button" disabled>🔄 Refresh Data</button>
             </div>
         </div>
 
@@ -471,11 +496,18 @@
             document.getElementById('rarityFilter').addEventListener('change', handleFilterChange);
             document.getElementById('allRegions').addEventListener('change', handleFilterChange);
             document.getElementById('searchBox').addEventListener('input', handleSearch);
+            document.getElementById('refreshButton').addEventListener('click', handleRefresh);
 
             // Setup table sorting
             document.querySelectorAll('th.sortable').forEach(th => {
                 th.addEventListener('click', () => handleSort(th.dataset.column));
             });
+        }
+
+        // Handle refresh button click
+        function handleRefresh() {
+            // Re-trigger the filter change to fetch fresh data
+            handleFilterChange();
         }
 
         // Handle filter changes
@@ -601,6 +633,9 @@
 
                 showLoading(false);
                 currentAbortController = null;
+
+                // Enable refresh button
+                document.getElementById('refreshButton').disabled = false;
             } catch (error) {
                 // Don't show error if request was aborted
                 if (error.name === 'AbortError') {
