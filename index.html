@@ -299,6 +299,103 @@
             display: none;
         }
 
+        .search-results-section {
+            background-color: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .search-results-table-container {
+            overflow-x: auto;
+        }
+
+        .search-results-table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: #3a3a3a;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .search-results-table thead {
+            background-color: #2a2a2a;
+        }
+
+        .search-results-table th {
+            padding: 12px;
+            text-align: left;
+            color: #4a9eff;
+            font-weight: 600;
+            font-size: 14px;
+            text-transform: uppercase;
+            border-bottom: 2px solid #4a4a4a;
+        }
+
+        .search-results-table td {
+            padding: 12px;
+            color: #e0e0e0;
+            border-bottom: 1px solid #4a4a4a;
+        }
+
+        .search-results-table tbody tr {
+            transition: background-color 0.2s;
+        }
+
+        .search-results-table tbody tr:hover {
+            background-color: #4a4a4a;
+        }
+
+        .search-results-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .item-name-link {
+            color: #4a9eff;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .item-name-link:hover {
+            color: #6bb3ff;
+            text-decoration: underline;
+        }
+
+        .price-cell {
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 8px;
+            border-radius: 3px;
+            transition: background-color 0.2s;
+        }
+
+        .price-cell:hover {
+            background-color: #4a4a4a;
+        }
+
+        .price-cell:active {
+            background-color: #4a9eff;
+        }
+
+        .price-copy-icon {
+            font-size: 12px;
+            opacity: 0.6;
+        }
+
+        .tier-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            background-color: #4a4a4a;
+            color: #4a9eff;
+            font-weight: 500;
+            font-size: 13px;
+        }
+
         .no-orders {
             text-align: center;
             color: #b0b0b0;
@@ -353,6 +450,28 @@
         </div>
 
         <div class="error" id="errorMessage"></div>
+
+        <div class="search-results-section" id="searchResultsSection">
+            <h2 style="margin-bottom: 20px; color: #4a9eff;">Search Results</h2>
+            <div class="search-results-table-container">
+                <table class="search-results-table" id="searchResultsTable">
+                    <thead>
+                        <tr>
+                            <th>Item Name</th>
+                            <th>Tier</th>
+                            <th>Rarity</th>
+                            <th>Highest Buy</th>
+                            <th>Qty</th>
+                            <th>Lowest Sell</th>
+                            <th>Qty</th>
+                        </tr>
+                    </thead>
+                    <tbody id="searchResultsBody">
+                    </tbody>
+                </table>
+                <div class="loading" id="searchResultsLoading" style="display: none;">Loading search results...</div>
+            </div>
+        </div>
 
         <div class="stats-section" id="statsSection">
             <h2 style="margin-bottom: 20px; color: #4a9eff;">Market Statistics</h2>
@@ -543,6 +662,18 @@
             searchInput.dispatchEvent(new Event('input'));
         });
 
+        // Handle Enter key for multi-item search
+        searchInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const searchTerm = searchInput.value.trim();
+                if (searchTerm.length > 0) {
+                    typeaheadResults.style.display = 'none';
+                    performMultiItemSearch(searchTerm);
+                }
+            }
+        });
+
         // Close typeahead when clicking outside
         document.addEventListener('click', function(e) {
             if (!searchInput.contains(e.target) && !typeaheadResults.contains(e.target)) {
@@ -680,6 +811,171 @@
             const errorElement = document.getElementById('errorMessage');
             errorElement.textContent = message;
             errorElement.style.display = 'block';
+        }
+
+        // Perform multi-item search
+        async function performMultiItemSearch(searchTerm) {
+            const selectedTier = tierFilter.value;
+
+            // Filter items by search term, compendium entry, and tier
+            let filteredItems = allItems.filter(item =>
+                item.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
+                item.compendiumEntry === true
+            );
+
+            // Apply tier filter if not "all"
+            if (selectedTier !== 'all') {
+                filteredItems = filteredItems.filter(item =>
+                    item.tier === parseInt(selectedTier)
+                );
+            }
+
+            // Sort by tier ascending, then by rarity order
+            const rarityOrder = {
+                'Default': 0,
+                'Common': 1,
+                'Uncommon': 2,
+                'Rare': 3,
+                'Epic': 4,
+                'Legendary': 5,
+                'Mythic': 6
+            };
+
+            filteredItems.sort((a, b) => {
+                // First sort by tier
+                if (a.tier !== b.tier) {
+                    return a.tier - b.tier;
+                }
+                // Then sort by rarity
+                const rarityA = rarityOrder[a.rarityStr] || 0;
+                const rarityB = rarityOrder[b.rarityStr] || 0;
+                if (rarityA !== rarityB) {
+                    return rarityA - rarityB;
+                }
+                // Finally sort by name
+                return a.name.localeCompare(b.name);
+            });
+
+            // Limit to 20 results to avoid overloading
+            filteredItems = filteredItems.slice(0, 20);
+
+            if (filteredItems.length === 0) {
+                showError('No items found matching your search criteria.');
+                return;
+            }
+
+            // Hide other sections
+            document.getElementById('statsSection').style.display = 'none';
+            document.getElementById('ordersSection').style.display = 'none';
+            document.getElementById('errorMessage').style.display = 'none';
+
+            // Show search results section
+            document.getElementById('searchResultsSection').style.display = 'block';
+            document.getElementById('searchResultsLoading').style.display = 'block';
+            document.getElementById('searchResultsBody').innerHTML = '';
+
+            // Fetch market data for each item
+            const searchResults = [];
+            const allRegionsChecked = document.getElementById('allRegions').checked;
+            const targetRegionId = 4; // Solvenar
+
+            for (const item of filteredItems) {
+                try {
+                    const response = await fetch(`/api/market/item/${item.id}`);
+                    if (response.ok) {
+                        const data = await response.json();
+
+                        // Filter orders by region
+                        const buyOrders = allRegionsChecked ? data.buyOrders : data.buyOrders.filter(order => order.regionId === targetRegionId);
+                        const sellOrders = allRegionsChecked ? data.sellOrders : data.sellOrders.filter(order => order.regionId === targetRegionId);
+
+                        // Calculate highest buy and lowest sell
+                        let highestBuy = '-';
+                        let highestBuyQty = '-';
+                        if (buyOrders && buyOrders.length > 0) {
+                            const maxBuyOrder = buyOrders.reduce((max, order) =>
+                                order.priceThreshold > max.priceThreshold ? order : max
+                            );
+                            highestBuy = maxBuyOrder.priceThreshold;
+                            highestBuyQty = maxBuyOrder.quantity;
+                        }
+
+                        let lowestSell = '-';
+                        let lowestSellQty = '-';
+                        if (sellOrders && sellOrders.length > 0) {
+                            const minSellOrder = sellOrders.reduce((min, order) =>
+                                order.priceThreshold < min.priceThreshold ? order : min
+                            );
+                            lowestSell = minSellOrder.priceThreshold;
+                            lowestSellQty = minSellOrder.quantity;
+                        }
+
+                        searchResults.push({
+                            id: item.id,
+                            name: item.name,
+                            tier: item.tier,
+                            rarity: item.rarityStr || 'Common',
+                            highestBuy: highestBuy,
+                            highestBuyQty: highestBuyQty,
+                            lowestSell: lowestSell,
+                            lowestSellQty: lowestSellQty
+                        });
+                    }
+                } catch (error) {
+                    console.error(`Failed to fetch data for ${item.name}:`, error);
+                }
+            }
+
+            // Hide loading indicator
+            document.getElementById('searchResultsLoading').style.display = 'none';
+
+            // Display results
+            displaySearchResults(searchResults);
+        }
+
+        // Display search results in table
+        function displaySearchResults(results) {
+            const tbody = document.getElementById('searchResultsBody');
+
+            if (results.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #b0b0b0; padding: 20px;">No market data available for these items</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = results.map(item => {
+                const rarityClass = item.rarity.toLowerCase();
+
+                // Create clickable price cells
+                const highestBuyCell = item.highestBuy !== '-'
+                    ? `<span class="price-cell" onclick="copyPriceWithFeedback('${item.highestBuy}')" title="Click to copy">${item.highestBuy} <span class="price-copy-icon">📋</span></span>`
+                    : '-';
+
+                const lowestSellCell = item.lowestSell !== '-'
+                    ? `<span class="price-cell" onclick="copyPriceWithFeedback('${item.lowestSell}')" title="Click to copy">${item.lowestSell} <span class="price-copy-icon">📋</span></span>`
+                    : '-';
+
+                return `
+                    <tr>
+                        <td><a href="https://bitjita.com/item/${item.id}" target="_blank" class="item-name-link">${item.name}</a></td>
+                        <td><span class="tier-badge">${item.tier}</span></td>
+                        <td><span class="rarity-${rarityClass}">${item.rarity}</span></td>
+                        <td>${highestBuyCell}</td>
+                        <td>${item.highestBuyQty}</td>
+                        <td>${lowestSellCell}</td>
+                        <td>${item.lowestSellQty}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // Copy price with visual feedback
+        function copyPriceWithFeedback(price) {
+            navigator.clipboard.writeText(price).then(() => {
+                console.log('Copied to clipboard:', price);
+                // You could add a toast notification here if desired
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+            });
         }
 
         // Initialize app
