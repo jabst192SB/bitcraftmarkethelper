@@ -421,6 +421,17 @@
     </div>
 
     <script>
+        // ==========================================
+        // API CONFIGURATION
+        // ==========================================
+        // For LOCAL development: Leave this empty ('')
+        // For GITHUB PAGES: Set this to your Cloudflare Worker URL
+        // Example: 'https://bitcraft-market-proxy.YOUR_SUBDOMAIN.workers.dev'
+        const API_BASE_URL = 'https://bitcraft-market-proxy.jbaird-cb6.workers.dev';
+
+        // ==========================================
+        // Don't modify below this line
+        // ==========================================
         let allItems = [];
         let currentResults = [];
         let currentSort = { column: 'category', direction: 'asc' };
@@ -621,7 +632,8 @@
 
                         updateLoadingDetails(`Fetching batch ${batchNum}/${totalBatches} (${batchIds.length} items)...`);
 
-                        const response = await fetch('/api/market/prices/bulk', {
+                        const bulkApiUrl = `${API_BASE_URL}/api/market/prices/bulk`;
+                        const response = await fetch(bulkApiUrl, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json'
@@ -639,7 +651,29 @@
                         }
 
                         if (!response.ok) {
-                            throw new Error(`API returned status ${response.status}`);
+                            // Capture full error details
+                            let responseBody = '';
+                            try {
+                                const contentType = response.headers.get('content-type');
+                                if (contentType && contentType.includes('application/json')) {
+                                    responseBody = JSON.stringify(await response.json(), null, 2);
+                                } else {
+                                    responseBody = await response.text();
+                                }
+                            } catch (e) {
+                                responseBody = 'Could not read response body';
+                            }
+
+                            showLoading(false);
+                            showError('Failed to fetch market data (bulk endpoint)', {
+                                url: bulkApiUrl,
+                                method: 'POST',
+                                status: response.status,
+                                statusText: response.statusText,
+                                responseBody: responseBody
+                            });
+                            currentAbortController = null;
+                            return;
                         }
 
                         const batchData = await response.json();
@@ -664,12 +698,36 @@
                         }
 
                         try {
-                            const response = await fetch(`/api/market/item/${item.id}`, { signal });
+                            const apiUrl = `${API_BASE_URL}/api/market/item/${item.id}`;
+                            const response = await fetch(apiUrl, { signal });
                             if (response.ok) {
                                 const data = await response.json();
                                 results.push({ item, data });
                             } else {
-                                results.push({ item, data: null });
+                                // Capture full error details
+                                let responseBody = '';
+                                try {
+                                    const contentType = response.headers.get('content-type');
+                                    if (contentType && contentType.includes('application/json')) {
+                                        responseBody = JSON.stringify(await response.json(), null, 2);
+                                    } else {
+                                        responseBody = await response.text();
+                                    }
+                                } catch (e) {
+                                    responseBody = 'Could not read response body';
+                                }
+
+                                console.error(`Failed to fetch item ${item.id}:`, response.status);
+                                showLoading(false);
+                                showError('Failed to fetch market data (individual item)', {
+                                    url: apiUrl,
+                                    method: 'GET',
+                                    status: response.status,
+                                    statusText: response.statusText,
+                                    responseBody: responseBody
+                                });
+                                currentAbortController = null;
+                                return;
                             }
                         } catch (error) {
                             if (error.name !== 'AbortError') {
@@ -702,7 +760,10 @@
                     return;
                 }
                 showLoading(false);
-                showError('Failed to fetch market data: ' + error.message);
+                showError('Failed to fetch market data', {
+                    error: error.message,
+                    method: allRegionsChecked ? 'POST (bulk)' : 'GET (individual)'
+                });
                 currentAbortController = null;
             }
         }
@@ -954,10 +1015,38 @@
             document.getElementById('loadingDetails').textContent = text;
         }
 
-        // Show error message
-        function showError(message) {
+        // Show error message with detailed information
+        function showError(message, details = null) {
             const errorElement = document.getElementById('errorMessage');
-            errorElement.textContent = message;
+
+            // Create detailed error message
+            let errorHtml = `<strong>Error:</strong> ${message}`;
+
+            if (details) {
+                errorHtml += '<br><br><strong>Details:</strong><br>';
+
+                if (details.url) {
+                    errorHtml += `<strong>URL:</strong> ${details.url}<br>`;
+                }
+
+                if (details.status) {
+                    errorHtml += `<strong>Status:</strong> ${details.status} ${details.statusText || ''}<br>`;
+                }
+
+                if (details.method) {
+                    errorHtml += `<strong>Method:</strong> ${details.method}<br>`;
+                }
+
+                if (details.responseBody) {
+                    errorHtml += `<strong>Response:</strong> <pre style="background: #f5f5f5; padding: 8px; margin-top: 4px; overflow-x: auto; white-space: pre-wrap;">${details.responseBody}</pre>`;
+                }
+
+                if (details.error) {
+                    errorHtml += `<strong>Error Message:</strong> ${details.error}<br>`;
+                }
+            }
+
+            errorElement.innerHTML = errorHtml;
             errorElement.classList.add('active');
         }
 
