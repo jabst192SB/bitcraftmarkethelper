@@ -874,45 +874,67 @@
             document.getElementById('searchResultsLoading').style.display = 'block';
             document.getElementById('searchResultsBody').innerHTML = '';
 
-            // Fetch market data for all items using bulk endpoint
+            // Fetch market data - use bulk endpoint for all regions, individual calls for specific region
             const searchResults = [];
             const allRegionsChecked = document.getElementById('allRegions').checked;
             const targetRegionId = 4; // Solvenar
 
-            try {
-                // Collect all item IDs
-                const itemIds = filteredItems.map(item => item.id);
+            if (allRegionsChecked) {
+                // Use fast bulk endpoint for all regions
+                try {
+                    const itemIds = filteredItems.map(item => item.id);
 
-                // Make bulk API call
-                const response = await fetch('/api/market/prices/bulk', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        itemIds: itemIds,
-                        cargoIds: []
-                    })
-                });
+                    const response = await fetch('/api/market/prices/bulk', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            itemIds: itemIds,
+                            cargoIds: []
+                        })
+                    });
 
-                if (response.ok) {
-                    const bulkData = await response.json();
+                    if (response.ok) {
+                        const bulkData = await response.json();
 
-                    // Process bulk response - map results by item ID
-                    const itemDataMap = new Map();
-                    if (bulkData && bulkData.items) {
-                        bulkData.items.forEach(itemData => {
-                            itemDataMap.set(itemData.itemId, itemData);
-                        });
+                        // Response format: { data: { items: { "[itemId]": { lowestSellPrice, highestBuyPrice, ... } } } }
+                        if (bulkData && bulkData.data && bulkData.data.items) {
+                            for (const item of filteredItems) {
+                                const priceData = bulkData.data.items[item.id];
+                                if (priceData) {
+                                    searchResults.push({
+                                        id: item.id,
+                                        name: item.name,
+                                        tier: item.tier,
+                                        rarity: item.rarityStr || 'Common',
+                                        highestBuy: priceData.highestBuyPrice !== null ? priceData.highestBuyPrice : '-',
+                                        highestBuyQty: priceData.totalBuyQuantity || '-',
+                                        lowestSell: priceData.lowestSellPrice !== null ? priceData.lowestSellPrice : '-',
+                                        lowestSellQty: priceData.totalSellQuantity || '-'
+                                    });
+                                }
+                            }
+                        }
+                    } else {
+                        console.error('Bulk API request failed:', response.status);
+                        showError('Failed to fetch market data. Please try again.');
                     }
-
-                    // Build search results from bulk data
+                } catch (error) {
+                    console.error('Error fetching bulk market data:', error);
+                    showError('Failed to fetch market data. Please try again.');
+                }
+            } else {
+                // Use individual calls for regional filtering (bulk doesn't support per-region data)
+                try {
                     for (const item of filteredItems) {
-                        const data = itemDataMap.get(item.id);
-                        if (data) {
+                        const response = await fetch(`/api/market/item/${item.id}`);
+                        if (response.ok) {
+                            const data = await response.json();
+
                             // Filter orders by region
-                            const buyOrders = allRegionsChecked ? data.buyOrders : data.buyOrders.filter(order => order.regionId === targetRegionId);
-                            const sellOrders = allRegionsChecked ? data.sellOrders : data.sellOrders.filter(order => order.regionId === targetRegionId);
+                            const buyOrders = data.buyOrders.filter(order => order.regionId === targetRegionId);
+                            const sellOrders = data.sellOrders.filter(order => order.regionId === targetRegionId);
 
                             // Calculate highest buy and lowest sell
                             let highestBuy = '-';
@@ -947,13 +969,10 @@
                             });
                         }
                     }
-                } else {
-                    console.error('Bulk API request failed:', response.status);
+                } catch (error) {
+                    console.error('Error fetching market data:', error);
                     showError('Failed to fetch market data. Please try again.');
                 }
-            } catch (error) {
-                console.error('Error fetching bulk market data:', error);
-                showError('Failed to fetch market data. Please try again.');
             }
 
             // Hide loading indicator

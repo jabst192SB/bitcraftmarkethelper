@@ -574,7 +574,7 @@
             return filtered;
         }
 
-        // Fetch market data using bulk endpoint
+        // Fetch market data - use bulk endpoint for all regions, individual calls for specific region
         async function fetchMarketData(items) {
             // Create new abort controller for this request
             currentAbortController = new AbortController();
@@ -588,52 +588,69 @@
 
             try {
                 const total = items.length;
-                updateLoadingDetails(`Fetching ${total} items in bulk...`);
+                let gridData;
 
-                // Collect all item IDs
-                const itemIds = items.map(item => item.id);
+                if (allRegionsChecked) {
+                    // Use bulk endpoint for all regions (fast)
+                    updateLoadingDetails(`Fetching ${total} items in bulk...`);
 
-                // Make bulk API call
-                const response = await fetch('/api/market/prices/bulk', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        itemIds: itemIds,
-                        cargoIds: []
-                    }),
-                    signal: signal
-                });
+                    const itemIds = items.map(item => item.id);
 
-                // Check if aborted
-                if (signal.aborted) {
-                    console.log('Request cancelled by user');
-                    return;
-                }
-
-                if (!response.ok) {
-                    throw new Error(`API returned status ${response.status}`);
-                }
-
-                const bulkData = await response.json();
-
-                // Map bulk data by item ID
-                const itemDataMap = new Map();
-                if (bulkData && bulkData.items) {
-                    bulkData.items.forEach(itemData => {
-                        itemDataMap.set(itemData.itemId, itemData);
+                    const response = await fetch('/api/market/prices/bulk', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            itemIds: itemIds,
+                            cargoIds: []
+                        }),
+                        signal: signal
                     });
+
+                    if (signal.aborted) {
+                        console.log('Request cancelled by user');
+                        return;
+                    }
+
+                    if (!response.ok) {
+                        throw new Error(`API returned status ${response.status}`);
+                    }
+
+                    const bulkData = await response.json();
+
+                    // Process bulk data (summary prices only)
+                    gridData = processBulkDataToGrid(items, bulkData);
+                } else {
+                    // Use individual calls for regional filtering
+                    updateLoadingDetails(`Fetching ${total} items for specific region...`);
+
+                    const results = [];
+                    for (const item of items) {
+                        if (signal.aborted) {
+                            console.log('Request cancelled by user');
+                            return;
+                        }
+
+                        try {
+                            const response = await fetch(`/api/market/item/${item.id}`, { signal });
+                            if (response.ok) {
+                                const data = await response.json();
+                                results.push({ item, data });
+                            } else {
+                                results.push({ item, data: null });
+                            }
+                        } catch (error) {
+                            if (error.name !== 'AbortError') {
+                                console.error(`Error fetching item ${item.id}:`, error);
+                            }
+                            results.push({ item, data: null });
+                        }
+                    }
+
+                    // Process individual order data with regional filtering
+                    gridData = processResultsToGrid(results, allRegionsChecked, targetRegionId);
                 }
-
-                // Convert bulk data to the same format that processResultsToGrid expects
-                const results = items.map(item => ({
-                    item: item,
-                    data: itemDataMap.get(item.id) || null
-                }));
-
-                // Process results into grid format
-                const gridData = processResultsToGrid(results, allRegionsChecked, targetRegionId);
 
                 // Sort by default (category, then itemName, then tier)
                 currentSort = { column: 'category', direction: 'asc' };
@@ -657,6 +674,53 @@
                 showError('Failed to fetch market data: ' + error.message);
                 currentAbortController = null;
             }
+        }
+
+        // Process bulk API data into grid format
+        function processBulkDataToGrid(items, bulkData) {
+            const grouped = {};
+
+            if (!bulkData || !bulkData.data || !bulkData.data.items) {
+                return [];
+            }
+
+            items.forEach(item => {
+                const priceData = bulkData.data.items[item.id];
+                if (!priceData || priceData.lowestSellPrice === null) return;
+
+                const key = `${item.name}|${item.tier}|${item.tag}`;
+
+                if (!grouped[key]) {
+                    grouped[key] = {
+                        itemName: item.name,
+                        itemId: item.id,
+                        tier: item.tier,
+                        category: item.tag,
+                        common: null,
+                        commonItemId: null,
+                        uncommon: null,
+                        uncommonItemId: null,
+                        rare: null,
+                        rareItemId: null,
+                        epic: null,
+                        epicItemId: null,
+                        legendary: null,
+                        legendaryItemId: null
+                    };
+                }
+
+                const rarityKey = item.rarityStr.toLowerCase();
+                const rarityIdKey = rarityKey + 'ItemId';
+                const lowestPrice = priceData.lowestSellPrice;
+
+                // Update the price if it's null or higher than the current lowest
+                if (grouped[key][rarityKey] === null || lowestPrice < grouped[key][rarityKey]) {
+                    grouped[key][rarityKey] = lowestPrice;
+                    grouped[key][rarityIdKey] = item.id;
+                }
+            });
+
+            return Object.values(grouped);
         }
 
         // Process API results into grid format
