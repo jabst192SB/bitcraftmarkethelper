@@ -593,7 +593,7 @@
                 if (allRegionsChecked) {
                     // Use bulk endpoint for all regions (batched in groups of 100)
                     const BULK_BATCH_SIZE = 100;
-                    const itemIds = items.map(item => item.id);
+                    const itemIds = items.map(item => parseInt(item.id));
                     const mergedBulkData = { data: { items: {} } };
 
                     // Split into batches of 100 (API limit)
