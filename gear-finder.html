@@ -273,6 +273,18 @@
             font-weight: 500;
         }
 
+        .price-with-claim {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .claim-name {
+            color: #9ca3af;
+            font-size: 11px;
+            font-style: italic;
+        }
+
         .price-na {
             color: #6b7280;
             font-style: italic;
@@ -433,7 +445,6 @@
         ];
 
         const RARITIES = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary'];
-        const MAX_CONCURRENT_REQUESTS = 4;
 
         // Load items.json on startup
         async function loadItems() {
@@ -575,7 +586,7 @@
             return filtered;
         }
 
-        // Fetch market data with concurrent request limiting
+        // Fetch market data - use bulk endpoint for all regions, individual calls for specific region
         async function fetchMarketData(items) {
             // Create new abort controller for this request
             currentAbortController = new AbortController();
@@ -588,41 +599,89 @@
             const targetRegionId = 4;
 
             try {
-                const results = [];
-                let completed = 0;
                 const total = items.length;
+                let gridData;
 
-                // Process items in batches of MAX_CONCURRENT_REQUESTS
-                for (let i = 0; i < items.length; i += MAX_CONCURRENT_REQUESTS) {
-                    // Check if aborted
-                    if (signal.aborted) {
-                        console.log('Request cancelled by user');
-                        return;
+                if (allRegionsChecked) {
+                    // Use bulk endpoint for all regions (batched in groups of 100)
+                    const BULK_BATCH_SIZE = 100;
+                    const itemIds = items.map(item => parseInt(item.id));
+                    const mergedBulkData = { data: { items: {} } };
+
+                    // Split into batches of 100 (API limit)
+                    for (let i = 0; i < itemIds.length; i += BULK_BATCH_SIZE) {
+                        if (signal.aborted) {
+                            console.log('Request cancelled by user');
+                            return;
+                        }
+
+                        const batchIds = itemIds.slice(i, i + BULK_BATCH_SIZE);
+                        const batchNum = Math.floor(i / BULK_BATCH_SIZE) + 1;
+                        const totalBatches = Math.ceil(itemIds.length / BULK_BATCH_SIZE);
+
+                        updateLoadingDetails(`Fetching batch ${batchNum}/${totalBatches} (${batchIds.length} items)...`);
+
+                        const response = await fetch('/api/market/prices/bulk', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                itemIds: batchIds,
+                                cargoIds: []
+                            }),
+                            signal: signal
+                        });
+
+                        if (signal.aborted) {
+                            console.log('Request cancelled by user');
+                            return;
+                        }
+
+                        if (!response.ok) {
+                            throw new Error(`API returned status ${response.status}`);
+                        }
+
+                        const batchData = await response.json();
+
+                        // Merge batch results into combined data
+                        if (batchData && batchData.data && batchData.data.items) {
+                            Object.assign(mergedBulkData.data.items, batchData.data.items);
+                        }
                     }
 
-                    const batch = items.slice(i, i + MAX_CONCURRENT_REQUESTS);
+                    // Process merged bulk data
+                    gridData = processBulkDataToGrid(items, mergedBulkData);
+                } else {
+                    // Use individual calls for regional filtering
+                    updateLoadingDetails(`Fetching ${total} items for specific region...`);
 
-                    updateLoadingDetails(`Fetching ${completed + 1}-${Math.min(completed + batch.length, total)} of ${total} items...`);
+                    const results = [];
+                    for (const item of items) {
+                        if (signal.aborted) {
+                            console.log('Request cancelled by user');
+                            return;
+                        }
 
-                    const batchPromises = batch.map(item =>
-                        fetchItemMarketData(item.id, signal)
-                            .then(data => ({ item, data }))
-                            .catch(error => {
-                                // Don't log abort errors
-                                if (error.name !== 'AbortError') {
-                                    console.error(`Error fetching data for item ${item.id}:`, error);
-                                }
-                                return { item, data: null };
-                            })
-                    );
+                        try {
+                            const response = await fetch(`/api/market/item/${item.id}`, { signal });
+                            if (response.ok) {
+                                const data = await response.json();
+                                results.push({ item, data });
+                            } else {
+                                results.push({ item, data: null });
+                            }
+                        } catch (error) {
+                            if (error.name !== 'AbortError') {
+                                console.error(`Error fetching item ${item.id}:`, error);
+                            }
+                            results.push({ item, data: null });
+                        }
+                    }
 
-                    const batchResults = await Promise.all(batchPromises);
-                    results.push(...batchResults);
-                    completed += batch.length;
+                    // Process individual order data with regional filtering
+                    gridData = processResultsToGrid(results, allRegionsChecked, targetRegionId);
                 }
-
-                // Process results into grid format
-                const gridData = processResultsToGrid(results, allRegionsChecked, targetRegionId);
 
                 // Sort by default (category, then itemName, then tier)
                 currentSort = { column: 'category', direction: 'asc' };
@@ -648,22 +707,17 @@
             }
         }
 
-        // Fetch market data for a single item
-        async function fetchItemMarketData(itemId, signal) {
-            const response = await fetch(`/api/market/item/${itemId}`, { signal });
-            if (!response.ok) {
-                throw new Error(`API returned status ${response.status}`);
-            }
-            return await response.json();
-        }
-
-        // Process API results into grid format
-        function processResultsToGrid(results, includeAllRegions, targetRegionId) {
-            // Group by (itemName, tier, category)
+        // Process bulk API data into grid format
+        function processBulkDataToGrid(items, bulkData) {
             const grouped = {};
 
-            results.forEach(({ item, data }) => {
-                if (!data || !data.sellOrders) return;
+            if (!bulkData || !bulkData.data || !bulkData.data.items) {
+                return [];
+            }
+
+            items.forEach(item => {
+                const priceData = bulkData.data.items[item.id];
+                if (!priceData || priceData.lowestSellPrice === null) return;
 
                 const key = `${item.name}|${item.tier}|${item.tag}`;
 
@@ -686,22 +740,75 @@
                     };
                 }
 
+                const rarityKey = item.rarityStr.toLowerCase();
+                const rarityIdKey = rarityKey + 'ItemId';
+                const lowestPrice = priceData.lowestSellPrice;
+
+                // Update the price if it's null or higher than the current lowest
+                if (grouped[key][rarityKey] === null || lowestPrice < grouped[key][rarityKey]) {
+                    grouped[key][rarityKey] = lowestPrice;
+                    grouped[key][rarityIdKey] = item.id;
+                }
+            });
+
+            return Object.values(grouped);
+        }
+
+        // Process API results into grid format
+        function processResultsToGrid(results, includeAllRegions, targetRegionId) {
+            // Group by (itemName, tier, category)
+            const grouped = {};
+
+            results.forEach(({ item, data }) => {
+                if (!data || !data.sellOrders) return;
+
+                const key = `${item.name}|${item.tier}|${item.tag}`;
+
+                if (!grouped[key]) {
+                    grouped[key] = {
+                        itemName: item.name,
+                        itemId: item.id,
+                        tier: item.tier,
+                        category: item.tag,
+                        common: null,
+                        commonItemId: null,
+                        commonClaim: null,
+                        uncommon: null,
+                        uncommonItemId: null,
+                        uncommonClaim: null,
+                        rare: null,
+                        rareItemId: null,
+                        rareClaim: null,
+                        epic: null,
+                        epicItemId: null,
+                        epicClaim: null,
+                        legendary: null,
+                        legendaryItemId: null,
+                        legendaryClaim: null
+                    };
+                }
+
                 // Filter sell orders by region if needed
                 let sellOrders = data.sellOrders;
                 if (!includeAllRegions) {
                     sellOrders = sellOrders.filter(order => order.regionId === targetRegionId);
                 }
 
-                // Find lowest price
+                // Find lowest price and its claim name
                 if (sellOrders.length > 0) {
-                    const lowestPrice = Math.min(...sellOrders.map(order => parseFloat(order.priceThreshold)));
+                    const lowestOrder = sellOrders.reduce((min, order) =>
+                        parseFloat(order.priceThreshold) < parseFloat(min.priceThreshold) ? order : min
+                    );
+                    const lowestPrice = parseFloat(lowestOrder.priceThreshold);
                     const rarityKey = item.rarityStr.toLowerCase();
                     const rarityIdKey = rarityKey + 'ItemId';
+                    const rarityClaimKey = rarityKey + 'Claim';
 
                     // Update the price if it's null or higher than the current lowest
                     if (grouped[key][rarityKey] === null || lowestPrice < grouped[key][rarityKey]) {
                         grouped[key][rarityKey] = lowestPrice;
                         grouped[key][rarityIdKey] = item.id;
+                        grouped[key][rarityClaimKey] = lowestOrder.claimName;
                     }
                 }
             });
@@ -728,19 +835,44 @@
                     <td><a href="https://bitjita.com/market/item/${row.itemId}" target="_blank" class="item-link">${row.itemName}</a></td>
                     <td>${row.tier}</td>
                     <td class="${row.common !== null ? 'price-cell' : 'price-na'}">
-                        ${row.common !== null && row.commonItemId ? `<a href="https://bitjita.com/market/item/${row.commonItemId}" target="_blank" class="item-link">${row.common}</a>` : (row.common !== null ? row.common : 'N/A')}
+                        ${row.common !== null && row.commonItemId
+                            ? `<div class="price-with-claim">
+                                 <a href="https://bitjita.com/market/item/${row.commonItemId}" target="_blank" class="item-link">${row.common}</a>
+                                 ${row.commonClaim ? `<div class="claim-name">${row.commonClaim}</div>` : ''}
+                               </div>`
+                            : (row.common !== null ? row.common : 'N/A')}
                     </td>
                     <td class="${row.uncommon !== null ? 'price-cell' : 'price-na'}">
-                        ${row.uncommon !== null && row.uncommonItemId ? `<a href="https://bitjita.com/market/item/${row.uncommonItemId}" target="_blank" class="item-link">${row.uncommon}</a>` : (row.uncommon !== null ? row.uncommon : 'N/A')}
+                        ${row.uncommon !== null && row.uncommonItemId
+                            ? `<div class="price-with-claim">
+                                 <a href="https://bitjita.com/market/item/${row.uncommonItemId}" target="_blank" class="item-link">${row.uncommon}</a>
+                                 ${row.uncommonClaim ? `<div class="claim-name">${row.uncommonClaim}</div>` : ''}
+                               </div>`
+                            : (row.uncommon !== null ? row.uncommon : 'N/A')}
                     </td>
                     <td class="${row.rare !== null ? 'price-cell' : 'price-na'}">
-                        ${row.rare !== null && row.rareItemId ? `<a href="https://bitjita.com/market/item/${row.rareItemId}" target="_blank" class="item-link">${row.rare}</a>` : (row.rare !== null ? row.rare : 'N/A')}
+                        ${row.rare !== null && row.rareItemId
+                            ? `<div class="price-with-claim">
+                                 <a href="https://bitjita.com/market/item/${row.rareItemId}" target="_blank" class="item-link">${row.rare}</a>
+                                 ${row.rareClaim ? `<div class="claim-name">${row.rareClaim}</div>` : ''}
+                               </div>`
+                            : (row.rare !== null ? row.rare : 'N/A')}
                     </td>
                     <td class="${row.epic !== null ? 'price-cell' : 'price-na'}">
-                        ${row.epic !== null && row.epicItemId ? `<a href="https://bitjita.com/market/item/${row.epicItemId}" target="_blank" class="item-link">${row.epic}</a>` : (row.epic !== null ? row.epic : 'N/A')}
+                        ${row.epic !== null && row.epicItemId
+                            ? `<div class="price-with-claim">
+                                 <a href="https://bitjita.com/market/item/${row.epicItemId}" target="_blank" class="item-link">${row.epic}</a>
+                                 ${row.epicClaim ? `<div class="claim-name">${row.epicClaim}</div>` : ''}
+                               </div>`
+                            : (row.epic !== null ? row.epic : 'N/A')}
                     </td>
                     <td class="${row.legendary !== null ? 'price-cell' : 'price-na'}">
-                        ${row.legendary !== null && row.legendaryItemId ? `<a href="https://bitjita.com/market/item/${row.legendaryItemId}" target="_blank" class="item-link">${row.legendary}</a>` : (row.legendary !== null ? row.legendary : 'N/A')}
+                        ${row.legendary !== null && row.legendaryItemId
+                            ? `<div class="price-with-claim">
+                                 <a href="https://bitjita.com/market/item/${row.legendaryItemId}" target="_blank" class="item-link">${row.legendary}</a>
+                                 ${row.legendaryClaim ? `<div class="claim-name">${row.legendaryClaim}</div>` : ''}
+                               </div>`
+                            : (row.legendary !== null ? row.legendary : 'N/A')}
                     </td>
                     <td>${row.category}</td>
                 </tr>
