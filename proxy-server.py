@@ -56,11 +56,18 @@ class CORSProxyHandler(SimpleHTTPRequestHandler):
 
             except urllib.error.HTTPError as e:
                 # Handle HTTP errors from the API
+                error_body = e.read().decode('utf-8') if e.fp else ''
+                print(f'Bulk API Error {e.code}: {error_body}')
+                print(f'Request was: {json.dumps(request_body)}')
                 self.send_response(e.code)
                 self.send_header('Content-Type', 'application/json')
                 self.end_headers()
-                error_msg = json.dumps({'error': f'API returned status {e.code}'})
-                self.wfile.write(error_msg.encode())
+                # Forward the actual error from the API if available
+                if error_body:
+                    self.wfile.write(error_body.encode())
+                else:
+                    error_msg = json.dumps({'error': f'API returned status {e.code}'})
+                    self.wfile.write(error_msg.encode())
 
             except Exception as e:
                 # Handle other errors
