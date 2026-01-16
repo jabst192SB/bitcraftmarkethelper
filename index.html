@@ -532,6 +532,17 @@
     </div>
 
     <script>
+        // ==========================================
+        // API CONFIGURATION
+        // ==========================================
+        // For LOCAL development: Leave this empty ('')
+        // For GITHUB PAGES: Set this to your Cloudflare Worker URL
+        // Example: 'https://bitcraft-market-proxy.YOUR_SUBDOMAIN.workers.dev'
+        const API_BASE_URL = '';
+
+        // ==========================================
+        // Don't modify below this line
+        // ==========================================
         let allItems = [];
         let currentItemId = null;
 
@@ -706,7 +717,7 @@
             document.getElementById('sellOrdersList').innerHTML = '<div class="loading">Loading...</div>';
 
             try {
-                const apiUrl = `/api/market/item/${itemId}`;
+                const apiUrl = `${API_BASE_URL}/api/market/item/${itemId}`;
                 const response = await fetch(apiUrl);
 
                 if (!response.ok) {
@@ -750,7 +761,7 @@
             } catch (error) {
                 showError('Failed to fetch market data', {
                     error: error.message,
-                    url: `/api/market/item/${itemId}`,
+                    url: `${API_BASE_URL}/api/market/item/${itemId}`,
                     method: 'GET'
                 });
                 document.getElementById('statsSection').style.display = 'none';
@@ -958,7 +969,7 @@
                     for (let i = 0; i < itemIds.length; i += BULK_BATCH_SIZE) {
                         const batchIds = itemIds.slice(i, i + BULK_BATCH_SIZE);
 
-                        const bulkApiUrl = '/api/market/prices/bulk';
+                        const bulkApiUrl = `${API_BASE_URL}/api/market/prices/bulk`;
                         const response = await fetch(bulkApiUrl, {
                             method: 'POST',
                             headers: {
@@ -1025,7 +1036,7 @@
                     console.error('Error fetching bulk market data:', error);
                     showError('Failed to fetch market data (bulk endpoint)', {
                         error: error.message,
-                        url: '/api/market/prices/bulk',
+                        url: `${API_BASE_URL}/api/market/prices/bulk`,
                         method: 'POST'
                     });
                 }
@@ -1033,7 +1044,7 @@
                 // Use individual calls for regional filtering (bulk doesn't support per-region data)
                 try {
                     for (const item of filteredItems) {
-                        const apiUrl = `/api/market/item/${item.id}`;
+                        const apiUrl = `${API_BASE_URL}/api/market/item/${item.id}`;
                         const response = await fetch(apiUrl);
                         if (response.ok) {
                             const data = await response.json();

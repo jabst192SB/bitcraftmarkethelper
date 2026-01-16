@@ -2,7 +2,24 @@
 
 A lightweight web application for browsing Bitcraft market data with real-time API integration.
 
-## 🚀 Quick Start (Windows 11)
+## 🌐 Deployment Options
+
+### Option 1: GitHub Pages (Recommended for Hosting)
+**Perfect for public deployment!** Deploy to GitHub Pages with Cloudflare Workers as a free API proxy.
+
+📖 **[Complete Setup Guide](CLOUDFLARE_SETUP.md)** - Follow this guide to deploy to GitHub Pages (5-10 minutes)
+
+**Benefits:**
+- ✅ Free hosting on GitHub Pages
+- ✅ Free API proxy via Cloudflare Workers (100,000 requests/day)
+- ✅ No server maintenance required
+- ✅ Global CDN for fast loading
+- ✅ Accessible from anywhere
+
+### Option 2: Local Development
+Run the app locally on your computer using the Python proxy server.
+
+## 🚀 Quick Start (Local Development)
 
 ### Method 1: Double-Click Start (Easiest)
 1. **Double-click `start-server.bat`**
@@ -70,6 +87,26 @@ run_server(8001)  # Change 8000 to 8001 or any available port
 - Default region filter is Solvenar (Region 4)
 - All prices can be copied with a single click
 - The application automatically updates when you change filters
+
+## 📁 Repository Files
+
+- **`index.html`** - Main market search page
+- **`gear-finder.html`** - Gear finder / market analyzer page
+- **`items.json`** - Item database (2.5MB)
+- **`proxy-server.py`** - Local Python CORS proxy server (for local development)
+- **`cloudflare-worker.js`** - Cloudflare Worker proxy script (for GitHub Pages)
+- **`wrangler.toml`** - Cloudflare Worker configuration
+- **`CLOUDFLARE_SETUP.md`** - Complete guide for deploying to GitHub Pages
+- **`start-server.bat`** - Windows batch file for easy local startup
+
+## 🔄 Switching Between Local and GitHub Pages
+
+The app automatically detects whether to use local or remote API:
+
+- **Local Development**: `API_BASE_URL = ''` (empty string) - uses `/api/` paths handled by `proxy-server.py`
+- **GitHub Pages**: `API_BASE_URL = 'https://your-worker.workers.dev'` - uses your Cloudflare Worker
+
+To switch, simply update the `API_BASE_URL` constant at the top of `index.html` and `gear-finder.html`.
 
 ---
 

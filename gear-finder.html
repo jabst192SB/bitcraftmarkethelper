@@ -421,6 +421,17 @@
     </div>
 
     <script>
+        // ==========================================
+        // API CONFIGURATION
+        // ==========================================
+        // For LOCAL development: Leave this empty ('')
+        // For GITHUB PAGES: Set this to your Cloudflare Worker URL
+        // Example: 'https://bitcraft-market-proxy.YOUR_SUBDOMAIN.workers.dev'
+        const API_BASE_URL = '';
+
+        // ==========================================
+        // Don't modify below this line
+        // ==========================================
         let allItems = [];
         let currentResults = [];
         let currentSort = { column: 'category', direction: 'asc' };
@@ -621,7 +632,7 @@
 
                         updateLoadingDetails(`Fetching batch ${batchNum}/${totalBatches} (${batchIds.length} items)...`);
 
-                        const bulkApiUrl = '/api/market/prices/bulk';
+                        const bulkApiUrl = `${API_BASE_URL}/api/market/prices/bulk`;
                         const response = await fetch(bulkApiUrl, {
                             method: 'POST',
                             headers: {
@@ -687,7 +698,7 @@
                         }
 
                         try {
-                            const apiUrl = `/api/market/item/${item.id}`;
+                            const apiUrl = `${API_BASE_URL}/api/market/item/${item.id}`;
                             const response = await fetch(apiUrl, { signal });
                             if (response.ok) {
                                 const data = await response.json();

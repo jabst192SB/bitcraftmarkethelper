@@ -1,0 +1,16 @@
+# Cloudflare Workers Configuration
+# This file configures your worker deployment
+
+name = "bitcraft-market-proxy"
+main = "cloudflare-worker.js"
+compatibility_date = "2024-01-01"
+
+# Workers Free Tier:
+# - 100,000 requests/day
+# - No credit card required
+# - Perfect for this use case
+
+# After deployment, your worker will be available at:
+# https://bitcraft-market-proxy.YOUR_SUBDOMAIN.workers.dev
+#
+# Update API_BASE_URL in index.html and gear-finder.html with this URL
