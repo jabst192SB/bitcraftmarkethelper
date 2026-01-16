@@ -874,56 +874,86 @@
             document.getElementById('searchResultsLoading').style.display = 'block';
             document.getElementById('searchResultsBody').innerHTML = '';
 
-            // Fetch market data for each item
+            // Fetch market data for all items using bulk endpoint
             const searchResults = [];
             const allRegionsChecked = document.getElementById('allRegions').checked;
             const targetRegionId = 4; // Solvenar
 
-            for (const item of filteredItems) {
-                try {
-                    const response = await fetch(`/api/market/item/${item.id}`);
-                    if (response.ok) {
-                        const data = await response.json();
+            try {
+                // Collect all item IDs
+                const itemIds = filteredItems.map(item => item.id);
 
-                        // Filter orders by region
-                        const buyOrders = allRegionsChecked ? data.buyOrders : data.buyOrders.filter(order => order.regionId === targetRegionId);
-                        const sellOrders = allRegionsChecked ? data.sellOrders : data.sellOrders.filter(order => order.regionId === targetRegionId);
+                // Make bulk API call
+                const response = await fetch('/api/market/prices/bulk', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        itemIds: itemIds,
+                        cargoIds: []
+                    })
+                });
 
-                        // Calculate highest buy and lowest sell
-                        let highestBuy = '-';
-                        let highestBuyQty = '-';
-                        if (buyOrders && buyOrders.length > 0) {
-                            const maxBuyOrder = buyOrders.reduce((max, order) =>
-                                order.priceThreshold > max.priceThreshold ? order : max
-                            );
-                            highestBuy = maxBuyOrder.priceThreshold;
-                            highestBuyQty = maxBuyOrder.quantity;
-                        }
+                if (response.ok) {
+                    const bulkData = await response.json();
 
-                        let lowestSell = '-';
-                        let lowestSellQty = '-';
-                        if (sellOrders && sellOrders.length > 0) {
-                            const minSellOrder = sellOrders.reduce((min, order) =>
-                                order.priceThreshold < min.priceThreshold ? order : min
-                            );
-                            lowestSell = minSellOrder.priceThreshold;
-                            lowestSellQty = minSellOrder.quantity;
-                        }
-
-                        searchResults.push({
-                            id: item.id,
-                            name: item.name,
-                            tier: item.tier,
-                            rarity: item.rarityStr || 'Common',
-                            highestBuy: highestBuy,
-                            highestBuyQty: highestBuyQty,
-                            lowestSell: lowestSell,
-                            lowestSellQty: lowestSellQty
+                    // Process bulk response - map results by item ID
+                    const itemDataMap = new Map();
+                    if (bulkData && bulkData.items) {
+                        bulkData.items.forEach(itemData => {
+                            itemDataMap.set(itemData.itemId, itemData);
                         });
                     }
-                } catch (error) {
-                    console.error(`Failed to fetch data for ${item.name}:`, error);
+
+                    // Build search results from bulk data
+                    for (const item of filteredItems) {
+                        const data = itemDataMap.get(item.id);
+                        if (data) {
+                            // Filter orders by region
+                            const buyOrders = allRegionsChecked ? data.buyOrders : data.buyOrders.filter(order => order.regionId === targetRegionId);
+                            const sellOrders = allRegionsChecked ? data.sellOrders : data.sellOrders.filter(order => order.regionId === targetRegionId);
+
+                            // Calculate highest buy and lowest sell
+                            let highestBuy = '-';
+                            let highestBuyQty = '-';
+                            if (buyOrders && buyOrders.length > 0) {
+                                const maxBuyOrder = buyOrders.reduce((max, order) =>
+                                    order.priceThreshold > max.priceThreshold ? order : max
+                                );
+                                highestBuy = maxBuyOrder.priceThreshold;
+                                highestBuyQty = maxBuyOrder.quantity;
+                            }
+
+                            let lowestSell = '-';
+                            let lowestSellQty = '-';
+                            if (sellOrders && sellOrders.length > 0) {
+                                const minSellOrder = sellOrders.reduce((min, order) =>
+                                    order.priceThreshold < min.priceThreshold ? order : min
+                                );
+                                lowestSell = minSellOrder.priceThreshold;
+                                lowestSellQty = minSellOrder.quantity;
+                            }
+
+                            searchResults.push({
+                                id: item.id,
+                                name: item.name,
+                                tier: item.tier,
+                                rarity: item.rarityStr || 'Common',
+                                highestBuy: highestBuy,
+                                highestBuyQty: highestBuyQty,
+                                lowestSell: lowestSell,
+                                lowestSellQty: lowestSellQty
+                            });
+                        }
+                    }
+                } else {
+                    console.error('Bulk API request failed:', response.status);
+                    showError('Failed to fetch market data. Please try again.');
                 }
+            } catch (error) {
+                console.error('Error fetching bulk market data:', error);
+                showError('Failed to fetch market data. Please try again.');
             }
 
             // Hide loading indicator

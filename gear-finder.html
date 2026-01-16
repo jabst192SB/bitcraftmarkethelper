@@ -433,7 +433,6 @@
         ];
 
         const RARITIES = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary'];
-        const MAX_CONCURRENT_REQUESTS = 4;
 
         // Load items.json on startup
         async function loadItems() {
@@ -575,7 +574,7 @@
             return filtered;
         }
 
-        // Fetch market data with concurrent request limiting
+        // Fetch market data using bulk endpoint
         async function fetchMarketData(items) {
             // Create new abort controller for this request
             currentAbortController = new AbortController();
@@ -588,38 +587,50 @@
             const targetRegionId = 4;
 
             try {
-                const results = [];
-                let completed = 0;
                 const total = items.length;
+                updateLoadingDetails(`Fetching ${total} items in bulk...`);
 
-                // Process items in batches of MAX_CONCURRENT_REQUESTS
-                for (let i = 0; i < items.length; i += MAX_CONCURRENT_REQUESTS) {
-                    // Check if aborted
-                    if (signal.aborted) {
-                        console.log('Request cancelled by user');
-                        return;
-                    }
+                // Collect all item IDs
+                const itemIds = items.map(item => item.id);
 
-                    const batch = items.slice(i, i + MAX_CONCURRENT_REQUESTS);
+                // Make bulk API call
+                const response = await fetch('/api/market/prices/bulk', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        itemIds: itemIds,
+                        cargoIds: []
+                    }),
+                    signal: signal
+                });
 
-                    updateLoadingDetails(`Fetching ${completed + 1}-${Math.min(completed + batch.length, total)} of ${total} items...`);
-
-                    const batchPromises = batch.map(item =>
-                        fetchItemMarketData(item.id, signal)
-                            .then(data => ({ item, data }))
-                            .catch(error => {
-                                // Don't log abort errors
-                                if (error.name !== 'AbortError') {
-                                    console.error(`Error fetching data for item ${item.id}:`, error);
-                                }
-                                return { item, data: null };
-                            })
-                    );
-
-                    const batchResults = await Promise.all(batchPromises);
-                    results.push(...batchResults);
-                    completed += batch.length;
+                // Check if aborted
+                if (signal.aborted) {
+                    console.log('Request cancelled by user');
+                    return;
                 }
+
+                if (!response.ok) {
+                    throw new Error(`API returned status ${response.status}`);
+                }
+
+                const bulkData = await response.json();
+
+                // Map bulk data by item ID
+                const itemDataMap = new Map();
+                if (bulkData && bulkData.items) {
+                    bulkData.items.forEach(itemData => {
+                        itemDataMap.set(itemData.itemId, itemData);
+                    });
+                }
+
+                // Convert bulk data to the same format that processResultsToGrid expects
+                const results = items.map(item => ({
+                    item: item,
+                    data: itemDataMap.get(item.id) || null
+                }));
 
                 // Process results into grid format
                 const gridData = processResultsToGrid(results, allRegionsChecked, targetRegionId);
@@ -646,15 +657,6 @@
                 showError('Failed to fetch market data: ' + error.message);
                 currentAbortController = null;
             }
-        }
-
-        // Fetch market data for a single item
-        async function fetchItemMarketData(itemId, signal) {
-            const response = await fetch(`/api/market/item/${itemId}`, { signal });
-            if (!response.ok) {
-                throw new Error(`API returned status ${response.status}`);
-            }
-            return await response.json();
         }
 
         // Process API results into grid format
