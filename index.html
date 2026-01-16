@@ -880,45 +880,58 @@
             const targetRegionId = 4; // Solvenar
 
             if (allRegionsChecked) {
-                // Use fast bulk endpoint for all regions
+                // Use fast bulk endpoint for all regions (batched in groups of 100)
                 try {
+                    const BULK_BATCH_SIZE = 100;
                     const itemIds = filteredItems.map(item => item.id);
+                    const mergedBulkData = { data: { items: {} } };
 
-                    const response = await fetch('/api/market/prices/bulk', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            itemIds: itemIds,
-                            cargoIds: []
-                        })
-                    });
+                    // Split into batches of 100 (API limit)
+                    for (let i = 0; i < itemIds.length; i += BULK_BATCH_SIZE) {
+                        const batchIds = itemIds.slice(i, i + BULK_BATCH_SIZE);
 
-                    if (response.ok) {
-                        const bulkData = await response.json();
+                        const response = await fetch('/api/market/prices/bulk', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                itemIds: batchIds,
+                                cargoIds: []
+                            })
+                        });
 
-                        // Response format: { data: { items: { "[itemId]": { lowestSellPrice, highestBuyPrice, ... } } } }
-                        if (bulkData && bulkData.data && bulkData.data.items) {
-                            for (const item of filteredItems) {
-                                const priceData = bulkData.data.items[item.id];
-                                if (priceData) {
-                                    searchResults.push({
-                                        id: item.id,
-                                        name: item.name,
-                                        tier: item.tier,
-                                        rarity: item.rarityStr || 'Common',
-                                        highestBuy: priceData.highestBuyPrice !== null ? priceData.highestBuyPrice : '-',
-                                        highestBuyQty: priceData.totalBuyQuantity || '-',
-                                        lowestSell: priceData.lowestSellPrice !== null ? priceData.lowestSellPrice : '-',
-                                        lowestSellQty: priceData.totalSellQuantity || '-'
-                                    });
-                                }
+                        if (response.ok) {
+                            const batchData = await response.json();
+
+                            // Merge batch results
+                            if (batchData && batchData.data && batchData.data.items) {
+                                Object.assign(mergedBulkData.data.items, batchData.data.items);
+                            }
+                        } else {
+                            console.error('Bulk API request failed:', response.status);
+                            showError('Failed to fetch market data. Please try again.');
+                            break;
+                        }
+                    }
+
+                    // Process merged bulk data
+                    if (mergedBulkData && mergedBulkData.data && mergedBulkData.data.items) {
+                        for (const item of filteredItems) {
+                            const priceData = mergedBulkData.data.items[item.id];
+                            if (priceData) {
+                                searchResults.push({
+                                    id: item.id,
+                                    name: item.name,
+                                    tier: item.tier,
+                                    rarity: item.rarityStr || 'Common',
+                                    highestBuy: priceData.highestBuyPrice !== null ? priceData.highestBuyPrice : '-',
+                                    highestBuyQty: priceData.totalBuyQuantity || '-',
+                                    lowestSell: priceData.lowestSellPrice !== null ? priceData.lowestSellPrice : '-',
+                                    lowestSellQty: priceData.totalSellQuantity || '-'
+                                });
                             }
                         }
-                    } else {
-                        console.error('Bulk API request failed:', response.status);
-                        showError('Failed to fetch market data. Please try again.');
                     }
                 } catch (error) {
                     console.error('Error fetching bulk market data:', error);

@@ -591,36 +591,55 @@
                 let gridData;
 
                 if (allRegionsChecked) {
-                    // Use bulk endpoint for all regions (fast)
-                    updateLoadingDetails(`Fetching ${total} items in bulk...`);
-
+                    // Use bulk endpoint for all regions (batched in groups of 100)
+                    const BULK_BATCH_SIZE = 100;
                     const itemIds = items.map(item => item.id);
+                    const mergedBulkData = { data: { items: {} } };
 
-                    const response = await fetch('/api/market/prices/bulk', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            itemIds: itemIds,
-                            cargoIds: []
-                        }),
-                        signal: signal
-                    });
+                    // Split into batches of 100 (API limit)
+                    for (let i = 0; i < itemIds.length; i += BULK_BATCH_SIZE) {
+                        if (signal.aborted) {
+                            console.log('Request cancelled by user');
+                            return;
+                        }
 
-                    if (signal.aborted) {
-                        console.log('Request cancelled by user');
-                        return;
+                        const batchIds = itemIds.slice(i, i + BULK_BATCH_SIZE);
+                        const batchNum = Math.floor(i / BULK_BATCH_SIZE) + 1;
+                        const totalBatches = Math.ceil(itemIds.length / BULK_BATCH_SIZE);
+
+                        updateLoadingDetails(`Fetching batch ${batchNum}/${totalBatches} (${batchIds.length} items)...`);
+
+                        const response = await fetch('/api/market/prices/bulk', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                itemIds: batchIds,
+                                cargoIds: []
+                            }),
+                            signal: signal
+                        });
+
+                        if (signal.aborted) {
+                            console.log('Request cancelled by user');
+                            return;
+                        }
+
+                        if (!response.ok) {
+                            throw new Error(`API returned status ${response.status}`);
+                        }
+
+                        const batchData = await response.json();
+
+                        // Merge batch results into combined data
+                        if (batchData && batchData.data && batchData.data.items) {
+                            Object.assign(mergedBulkData.data.items, batchData.data.items);
+                        }
                     }
 
-                    if (!response.ok) {
-                        throw new Error(`API returned status ${response.status}`);
-                    }
-
-                    const bulkData = await response.json();
-
-                    // Process bulk data (summary prices only)
-                    gridData = processBulkDataToGrid(items, bulkData);
+                    // Process merged bulk data
+                    gridData = processBulkDataToGrid(items, mergedBulkData);
                 } else {
                     // Use individual calls for regional filtering
                     updateLoadingDetails(`Fetching ${total} items for specific region...`);
