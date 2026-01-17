@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Market Order Monitor - Bitcraft Market Helper</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a1a;
+            color: #e0e0e0;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+            color: #4a9eff;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #b0b0b0;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .nav-links {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .nav-links a {
+            color: #4a9eff;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            background-color: #2a2a2a;
+            display: inline-block;
+            margin: 0 5px;
+        }
+
+        .nav-links a:hover {
+            background-color: #3a3a3a;
+        }
+
+        .status-bar {
+            background-color: #2a2a2a;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-label {
+            color: #b0b0b0;
+            font-size: 13px;
+        }
+
+        .status-value {
+            color: #4a9eff;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .status-indicator.active {
+            background-color: #4ade80;
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.error {
+            background-color: #f87171;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .controls {
+            background-color: #2a2a2a;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            background-color: #4a9eff;
+            color: #1a1a1a;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .btn:hover {
+            background-color: #6bb3ff;
+        }
+
+        .btn.secondary {
+            background-color: #4a4a4a;
+            color: #e0e0e0;
+        }
+
+        .btn.secondary:hover {
+            background-color: #5a5a5a;
+        }
+
+        .btn:disabled {
+            background-color: #3a3a3a;
+            color: #6b7280;
+            cursor: not-allowed;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .panel {
+            background-color: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+        }
+
+        .panel h2 {
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #4a4a4a;
+            color: #4a9eff;
+        }
+
+        .market-table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: #3a3a3a;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .market-table thead {
+            background-color: #2a2a2a;
+        }
+
+        .market-table th {
+            padding: 12px;
+            text-align: left;
+            color: #4a9eff;
+            font-weight: 600;
+            font-size: 13px;
+            text-transform: uppercase;
+            border-bottom: 2px solid #4a4a4a;
+        }
+
+        .market-table td {
+            padding: 12px;
+            color: #e0e0e0;
+            border-bottom: 1px solid #4a4a4a;
+            font-size: 14px;
+        }
+
+        .market-table tbody tr {
+            transition: background-color 0.2s;
+            cursor: pointer;
+        }
+
+        .market-table tbody tr:hover {
+            background-color: #4a4a4a;
+        }
+
+        .market-table tbody tr.highlighted {
+            animation: highlight 2s ease-out;
+        }
+
+        @keyframes highlight {
+            0% { background-color: #4a9eff; }
+            100% { background-color: transparent; }
+        }
+
+        .change-indicator {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 5px;
+        }
+
+        .change-indicator.positive {
+            background-color: rgba(74, 222, 128, 0.2);
+            color: #4ade80;
+        }
+
+        .change-indicator.negative {
+            background-color: rgba(248, 113, 113, 0.2);
+            color: #f87171;
+        }
+
+        .change-indicator.new {
+            background-color: rgba(167, 139, 250, 0.2);
+            color: #a78bfa;
+        }
+
+        .change-log {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .change-entry {
+            background-color: #3a3a3a;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            border-left: 3px solid #4a4a4a;
+        }
+
+        .change-entry.new-item {
+            border-left-color: #a78bfa;
+        }
+
+        .change-entry.order-increase {
+            border-left-color: #4ade80;
+        }
+
+        .change-entry.order-decrease {
+            border-left-color: #f87171;
+        }
+
+        .change-entry.item-removed {
+            border-left-color: #fb923c;
+        }
+
+        .change-timestamp {
+            color: #b0b0b0;
+            font-size: 11px;
+            margin-bottom: 5px;
+        }
+
+        .change-item-name {
+            color: #4a9eff;
+            font-weight: 500;
+            margin-bottom: 3px;
+        }
+
+        .change-details {
+            color: #e0e0e0;
+            font-size: 13px;
+        }
+
+        .loading {
+            text-align: center;
+            color: #b0b0b0;
+            padding: 40px;
+            font-style: italic;
+        }
+
+        .error-message {
+            background-color: #4a2a2a;
+            color: #f87171;
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 3px solid #f87171;
+            margin-bottom: 20px;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #b0b0b0;
+            padding: 40px;
+            font-style: italic;
+        }
+
+        .attribution-footer {
+            background-color: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 40px;
+            text-align: center;
+            border-top: 2px solid #4a9eff;
+        }
+
+        .attribution-footer p {
+            color: #b0b0b0;
+            font-size: 14px;
+            margin: 0;
+        }
+
+        .attribution-footer a {
+            color: #4a9eff;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .attribution-footer a:hover {
+            color: #6bb3ff;
+            text-decoration: underline;
+        }
+
+        @media (max-width: 1200px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .status-bar {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .controls {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 Market Order Monitor</h1>
+        <div class="subtitle">Real-time tracking of market order changes • Updates every 5 minutes</div>
+
+        <div class="nav-links">
+            <a href="index.html">← Back to Market Helper</a>
+            <a href="gear-finder.html">⚔️ Gear Finder</a>
+            <a href="help.html">📚 Help & FAQ</a>
+        </div>
+
+        <div class="status-bar">
+            <div class="status-item">
+                <span class="status-indicator" id="statusIndicator"></span>
+                <span class="status-label">Status:</span>
+                <span class="status-value" id="statusText">Initializing...</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Last Update:</span>
+                <span class="status-value" id="lastUpdateText">-</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Total Changes:</span>
+                <span class="status-value" id="totalChanges">-</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Items with Orders:</span>
+                <span class="status-value" id="itemCount">-</span>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="btn" id="refreshBtn" onclick="refreshData()">🔄 Refresh Now</button>
+            <button class="btn secondary" id="pauseBtn" onclick="togglePause()">⏸️ Pause Auto-Refresh</button>
+            <button class="btn secondary" onclick="clearHighlights()">✨ Clear Highlights</button>
+        </div>
+
+        <div id="errorContainer"></div>
+
+        <div class="main-grid">
+            <div class="panel">
+                <h2>📈 Current Market Orders</h2>
+                <div style="overflow-x: auto;">
+                    <table class="market-table">
+                        <thead>
+                            <tr>
+                                <th>Item Name</th>
+                                <th>Tier</th>
+                                <th>Sell Orders</th>
+                                <th>Buy Orders</th>
+                                <th>Total Orders</th>
+                            </tr>
+                        </thead>
+                        <tbody id="marketTableBody">
+                            <tr>
+                                <td colspan="5" class="loading">Loading market data...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h2>📋 Recent Changes</h2>
+                <div class="change-log" id="changeLog">
+                    <div class="loading">Loading change history...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="attribution-footer">
+            <p>Market data graciously provided by <a href="https://bitjita.com" target="_blank">bitjita.com</a> 💙</p>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // CONFIGURATION
+        // ==========================================
+        const API_BASE_URL = 'https://bitcraft-market-proxy.jbaird-cb6.workers.dev';
+        const REFRESH_INTERVAL = 60000; // 1 minute (poll for changes)
+
+        // ==========================================
+        // STATE
+        // ==========================================
+        let isPaused = false;
+        let refreshTimer = null;
+        let currentState = null;
+        let previousItems = new Map();
+
+        // ==========================================
+        // INITIALIZATION
+        // ==========================================
+        async function init() {
+            await refreshData();
+            startAutoRefresh();
+        }
+
+        // ==========================================
+        // AUTO REFRESH
+        // ==========================================
+        function startAutoRefresh() {
+            if (refreshTimer) {
+                clearInterval(refreshTimer);
+            }
+
+            refreshTimer = setInterval(() => {
+                if (!isPaused) {
+                    refreshData();
+                }
+            }, REFRESH_INTERVAL);
+        }
+
+        function togglePause() {
+            isPaused = !isPaused;
+            const btn = document.getElementById('pauseBtn');
+
+            if (isPaused) {
+                btn.textContent = '▶️ Resume Auto-Refresh';
+                updateStatus('Paused', 'error');
+            } else {
+                btn.textContent = '⏸️ Pause Auto-Refresh';
+                updateStatus('Active', 'active');
+                refreshData();
+            }
+        }
+
+        // ==========================================
+        // DATA FETCHING
+        // ==========================================
+        async function refreshData() {
+            try {
+                document.getElementById('refreshBtn').disabled = true;
+
+                // Fetch current state
+                const stateResponse = await fetch(`${API_BASE_URL}/api/monitor/state`);
+
+                if (!stateResponse.ok) {
+                    throw new Error(`Failed to fetch state: ${stateResponse.status}`);
+                }
+
+                const stateData = await stateResponse.json();
+
+                // Fetch recent changes
+                const changesResponse = await fetch(`${API_BASE_URL}/api/monitor/changes?limit=50`);
+
+                if (!changesResponse.ok) {
+                    throw new Error(`Failed to fetch changes: ${changesResponse.status}`);
+                }
+
+                const changesData = await changesResponse.json();
+
+                // Update UI
+                updateMarketTable(stateData);
+                updateChangeLog(changesData);
+                updateStatusBar(stateData);
+                clearError();
+
+                if (!isPaused) {
+                    updateStatus('Active', 'active');
+                }
+
+            } catch (error) {
+                console.error('Error refreshing data:', error);
+                showError(error.message);
+                updateStatus('Error', 'error');
+            } finally {
+                document.getElementById('refreshBtn').disabled = false;
+            }
+        }
+
+        // ==========================================
+        // UI UPDATES
+        // ==========================================
+        function updateMarketTable(data) {
+            const tbody = document.getElementById('marketTableBody');
+
+            if (!data.currentState || !data.currentState.items || data.currentState.items.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No items with orders found. Market monitoring will start on next update cycle.</td></tr>';
+                return;
+            }
+
+            const items = data.currentState.items;
+
+            // Sort by total orders descending
+            items.sort((a, b) => b.totalOrders - a.totalOrders);
+
+            // Build table rows
+            const rows = items.map(item => {
+                const prevItem = previousItems.get(item.id);
+                let sellOrdersHtml = item.sellOrders;
+                let buyOrdersHtml = item.buyOrders;
+                let totalOrdersHtml = item.totalOrders;
+
+                // Add change indicators
+                if (prevItem) {
+                    if (item.sellOrders > prevItem.sellOrders) {
+                        sellOrdersHtml += ` <span class="change-indicator positive">+${item.sellOrders - prevItem.sellOrders}</span>`;
+                    } else if (item.sellOrders < prevItem.sellOrders) {
+                        sellOrdersHtml += ` <span class="change-indicator negative">${item.sellOrders - prevItem.sellOrders}</span>`;
+                    }
+
+                    if (item.buyOrders > prevItem.buyOrders) {
+                        buyOrdersHtml += ` <span class="change-indicator positive">+${item.buyOrders - prevItem.buyOrders}</span>`;
+                    } else if (item.buyOrders < prevItem.buyOrders) {
+                        buyOrdersHtml += ` <span class="change-indicator negative">${item.buyOrders - prevItem.buyOrders}</span>`;
+                    }
+
+                    if (item.totalOrders > prevItem.totalOrders) {
+                        totalOrdersHtml += ` <span class="change-indicator positive">+${item.totalOrders - prevItem.totalOrders}</span>`;
+                    } else if (item.totalOrders < prevItem.totalOrders) {
+                        totalOrdersHtml += ` <span class="change-indicator negative">${item.totalOrders - prevItem.totalOrders}</span>`;
+                    }
+                } else if (previousItems.size > 0) {
+                    // New item
+                    totalOrdersHtml += ` <span class="change-indicator new">NEW</span>`;
+                }
+
+                const rowClass = (prevItem && (item.sellOrders !== prevItem.sellOrders || item.buyOrders !== prevItem.buyOrders)) ? 'highlighted' : '';
+
+                return `
+                    <tr class="${rowClass}" onclick="viewItemDetails('${item.id}', '${escapeHtml(item.name)}')">
+                        <td><a href="https://bitjita.com/market/item/${item.id}" target="_blank" style="color: #4a9eff; text-decoration: none;">${escapeHtml(item.name)}</a></td>
+                        <td>${item.tier}</td>
+                        <td>${sellOrdersHtml}</td>
+                        <td>${buyOrdersHtml}</td>
+                        <td>${totalOrdersHtml}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            tbody.innerHTML = rows;
+
+            // Update previous items map
+            previousItems.clear();
+            items.forEach(item => {
+                previousItems.set(item.id, { ...item });
+            });
+        }
+
+        function updateChangeLog(data) {
+            const changeLog = document.getElementById('changeLog');
+
+            if (!data.changes || data.changes.length === 0) {
+                changeLog.innerHTML = '<div class="empty-state">No changes detected yet. Changes will appear here when market orders are added, removed, or modified.</div>';
+                return;
+            }
+
+            // Reverse to show newest first
+            const entries = [];
+            for (let i = data.changes.length - 1; i >= 0; i--) {
+                const entry = data.changes[i];
+
+                entry.changes.forEach(change => {
+                    let className = 'change-entry';
+                    let details = '';
+
+                    if (change.type === 'new_item') {
+                        className += ' new-item';
+                        details = `New item appeared with ${change.totalOrders} orders (${change.sellOrders} sell, ${change.buyOrders} buy)`;
+                    } else if (change.type === 'order_change') {
+                        if (change.delta.totalOrders > 0) {
+                            className += ' order-increase';
+                            details = `Orders increased: `;
+                        } else {
+                            className += ' order-decrease';
+                            details = `Orders decreased: `;
+                        }
+
+                        const parts = [];
+                        if (change.delta.sellOrders !== 0) {
+                            parts.push(`Sell ${change.delta.sellOrders > 0 ? '+' : ''}${change.delta.sellOrders}`);
+                        }
+                        if (change.delta.buyOrders !== 0) {
+                            parts.push(`Buy ${change.delta.buyOrders > 0 ? '+' : ''}${change.delta.buyOrders}`);
+                        }
+                        details += parts.join(', ');
+                        details += ` (Total: ${change.current.totalOrders})`;
+                    } else if (change.type === 'item_removed') {
+                        className += ' item-removed';
+                        details = `All orders removed (previously had ${change.previous.totalOrders} orders)`;
+                    }
+
+                    entries.push(`
+                        <div class="${className}">
+                            <div class="change-timestamp">${new Date(entry.timestamp).toLocaleString()}</div>
+                            <div class="change-item-name">${escapeHtml(change.itemName)}</div>
+                            <div class="change-details">${details}</div>
+                        </div>
+                    `);
+                });
+            }
+
+            changeLog.innerHTML = entries.join('');
+        }
+
+        function updateStatusBar(data) {
+            // Update last update time
+            if (data.lastUpdate) {
+                const lastUpdate = new Date(data.lastUpdate);
+                const now = new Date();
+                const diffMinutes = Math.floor((now - lastUpdate) / 60000);
+
+                if (diffMinutes < 1) {
+                    document.getElementById('lastUpdateText').textContent = 'Just now';
+                } else if (diffMinutes < 60) {
+                    document.getElementById('lastUpdateText').textContent = `${diffMinutes}m ago`;
+                } else {
+                    document.getElementById('lastUpdateText').textContent = lastUpdate.toLocaleTimeString();
+                }
+            }
+
+            // Update total changes
+            document.getElementById('totalChanges').textContent = data.changeCount || 0;
+
+            // Update item count
+            const itemCount = data.currentState?.items?.length || 0;
+            document.getElementById('itemCount').textContent = itemCount;
+        }
+
+        function updateStatus(text, status) {
+            document.getElementById('statusText').textContent = text;
+            const indicator = document.getElementById('statusIndicator');
+            indicator.className = `status-indicator ${status}`;
+        }
+
+        function showError(message) {
+            const container = document.getElementById('errorContainer');
+            container.innerHTML = `
+                <div class="error-message">
+                    <strong>Error:</strong> ${escapeHtml(message)}
+                </div>
+            `;
+        }
+
+        function clearError() {
+            document.getElementById('errorContainer').innerHTML = '';
+        }
+
+        function clearHighlights() {
+            document.querySelectorAll('.highlighted').forEach(el => {
+                el.classList.remove('highlighted');
+            });
+        }
+
+        // ==========================================
+        // ITEM DETAILS
+        // ==========================================
+        function viewItemDetails(itemId, itemName) {
+            window.open(`https://bitjita.com/market/item/${itemId}`, '_blank');
+        }
+
+        // ==========================================
+        // UTILITIES
+        // ==========================================
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return String(text).replace(/[&<>"']/g, m => map[m]);
+        }
+
+        // ==========================================
+        // START
+        // ==========================================
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

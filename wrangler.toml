@@ -14,3 +14,19 @@ compatibility_date = "2024-01-01"
 # https://bitcraft-market-proxy.YOUR_SUBDOMAIN.workers.dev
 #
 # Update API_BASE_URL in index.html and gear-finder.html with this URL
+
+# Durable Objects Configuration
+# Used for market monitoring state management
+[[durable_objects.bindings]]
+name = "MARKET_MONITOR"
+class_name = "MarketMonitor"
+
+# Enable Durable Objects migration (required for first deployment)
+[[migrations]]
+tag = "v1"
+new_classes = ["MarketMonitor"]
+
+# Scheduled Events (Cron Triggers)
+# Polls the market API every 5 minutes
+[triggers]
+crons = ["*/5 * * * *"]
