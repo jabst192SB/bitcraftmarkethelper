@@ -22,9 +22,10 @@ name = "MARKET_MONITOR"
 class_name = "MarketMonitor"
 
 # Enable Durable Objects migration (required for first deployment)
+# Using SQLite-based Durable Objects (available on FREE tier!)
 [[migrations]]
 tag = "v1"
-new_classes = ["MarketMonitor"]
+new_sqlite_classes = ["MarketMonitor"]
 
 # Scheduled Events (Cron Triggers)
 # Polls the market API every 5 minutes
