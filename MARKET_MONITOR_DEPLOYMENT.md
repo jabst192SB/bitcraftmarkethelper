@@ -75,12 +75,12 @@ Test the new monitor endpoints:
 
 1. **Check state endpoint:**
    ```bash
-   curl https://bitcraft-market-proxy.YOUR_SUBDOMAIN.workers.dev/api/monitor/state
+   curl https://bitcraft-market-proxy.jbaird-cb6.workers.dev/api/monitor/state
    ```
 
 2. **Check changes endpoint:**
    ```bash
-   curl https://bitcraft-market-proxy.YOUR_SUBDOMAIN.workers.dev/api/monitor/changes
+   curl https://bitcraft-market-proxy.jbaird-cb6.workers.dev/api/monitor/changes
    ```
 
 On first deployment, these will return empty/null data. After the first cron run (within 5 minutes), data will appear.
@@ -102,7 +102,7 @@ Or use the Cloudflare Dashboard:
 ### Step 6: Deploy the Frontend
 
 1. Add `market-monitor.html` to your repository
-2. Update the API_BASE_URL in `market-monitor.html` if needed (line 261)
+2. The API_BASE_URL in `market-monitor.html` is already configured to `https://bitcraft-market-proxy.jbaird-cb6.workers.dev`
 3. Commit and push to GitHub:
    ```bash
    git add market-monitor.html
@@ -166,7 +166,7 @@ wrangler tail
 
 Use the debug endpoint:
 ```bash
-curl https://bitcraft-market-proxy.YOUR_SUBDOMAIN.workers.dev/api/monitor/state
+curl https://bitcraft-market-proxy.jbaird-cb6.workers.dev/api/monitor/state
 ```
 
 ### Reset State (if needed)
@@ -174,7 +174,7 @@ curl https://bitcraft-market-proxy.YOUR_SUBDOMAIN.workers.dev/api/monitor/state
 To clear all stored data and start fresh:
 
 ```bash
-curl -X POST https://bitcraft-market-proxy.YOUR_SUBDOMAIN.workers.dev/api/monitor/reset
+curl -X POST https://bitcraft-market-proxy.jbaird-cb6.workers.dev/api/monitor/reset
 ```
 
 ## Troubleshooting
