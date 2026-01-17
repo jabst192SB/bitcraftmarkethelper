@@ -356,6 +356,85 @@
             text-decoration: underline;
         }
 
+        /* Tooltip Styles */
+        .help-icon {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            line-height: 16px;
+            text-align: center;
+            background-color: #4a9eff;
+            color: #1a1a1a;
+            border-radius: 50%;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: help;
+            margin-left: 6px;
+            position: relative;
+            vertical-align: middle;
+        }
+
+        .help-icon:hover {
+            background-color: #6bb3ff;
+        }
+
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 280px;
+            background-color: #2a2a2a;
+            color: #e0e0e0;
+            text-align: left;
+            border-radius: 6px;
+            padding: 12px;
+            position: absolute;
+            z-index: 2000;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -140px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            border: 1px solid #4a9eff;
+            font-size: 13px;
+            line-height: 1.4;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        .tooltip .tooltiptext::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: #4a9eff transparent transparent transparent;
+        }
+
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        .help-link {
+            display: inline-block;
+            padding: 8px 16px;
+            background-color: #2a2a2a;
+            color: #4a9eff;
+            text-decoration: none;
+            border-radius: 4px;
+            border: 1px solid #4a9eff;
+            transition: background-color 0.2s;
+        }
+
+        .help-link:hover {
+            background-color: #3a3a3a;
+        }
+
         @media (max-width: 768px) {
             .filters-row {
                 flex-direction: column;
@@ -370,31 +449,57 @@
             .search-box {
                 width: 100%;
             }
+
+            .tooltip .tooltiptext {
+                width: 200px;
+                margin-left: -100px;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>⚔️ Gear Finder - Bitcraft Market Helper</h1>
+        <h1>⚔️ Gear Finder - Bitcraft Market Helper
+            <span class="tooltip">
+                <span class="help-icon">?</span>
+                <span class="tooltiptext">Browse and compare gear items by category, tier, and rarity. View prices across all rarity levels in a convenient table format.</span>
+            </span>
+        </h1>
 
         <div class="nav-links">
             <a href="index.html">← Back to Market Search</a>
+            <a href="help.html" class="help-link">📚 Help & FAQ</a>
         </div>
 
         <div class="filters-section">
             <div class="filters-row">
                 <div class="filter-group">
-                    <label for="categoryFilter">Category (Ctrl+Click for multiple)</label>
+                    <label for="categoryFilter">Category (Ctrl+Click for multiple)
+                        <span class="tooltip">
+                            <span class="help-icon">?</span>
+                            <span class="tooltiptext">Select one or more gear categories to view. Hold Ctrl (or Cmd on Mac) and click to select multiple categories.</span>
+                        </span>
+                    </label>
                     <select id="categoryFilter" multiple>
                     </select>
                 </div>
                 <div class="filter-group">
-                    <label for="tierFilter">Tier (Ctrl+Click for multiple)</label>
+                    <label for="tierFilter">Tier (Ctrl+Click for multiple)
+                        <span class="tooltip">
+                            <span class="help-icon">?</span>
+                            <span class="tooltiptext">Filter by item tier levels. Hold Ctrl (or Cmd on Mac) and click to select multiple tiers.</span>
+                        </span>
+                    </label>
                     <select id="tierFilter" multiple>
                     </select>
                 </div>
                 <div class="filter-group">
-                    <label for="rarityFilter">Rarity (Ctrl+Click for multiple)</label>
+                    <label for="rarityFilter">Rarity (Ctrl+Click for multiple)
+                        <span class="tooltip">
+                            <span class="help-icon">?</span>
+                            <span class="tooltiptext">Filter by item rarity (Common, Uncommon, Rare, Epic, Legendary). Hold Ctrl (or Cmd on Mac) and click to select multiple rarities.</span>
+                        </span>
+                    </label>
                     <select id="rarityFilter" multiple>
                     </select>
                 </div>
@@ -402,9 +507,19 @@
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div class="checkbox-group">
                     <input type="checkbox" id="allRegions">
-                    <label for="allRegions">Include all regions (default: Solvenar - Region 4)</label>
+                    <label for="allRegions">Include all regions (default: Solvenar - Region 4)
+                        <span class="tooltip">
+                            <span class="help-icon">?</span>
+                            <span class="tooltiptext">By default, only shows market data from Solvenar (Region 4). Check this box to include market data from all regions.</span>
+                        </span>
+                    </label>
                 </div>
-                <button id="refreshButton" class="refresh-button" disabled>🔄 Refresh Data</button>
+                <button id="refreshButton" class="refresh-button" disabled>🔄 Refresh Data
+                    <span class="tooltip">
+                        <span class="help-icon" style="background-color: #1a1a1a; color: #4a9eff;">?</span>
+                        <span class="tooltiptext">Reload market data with current filter settings to get the latest prices. Button activates after selecting filters.</span>
+                    </span>
+                </button>
             </div>
         </div>
 
@@ -424,19 +539,63 @@
             <div class="results-header">
                 <div class="results-count" id="resultsCount">0 items found</div>
                 <input type="text" id="searchBox" class="search-box" placeholder="Filter results...">
+                <span class="tooltip">
+                    <span class="help-icon">?</span>
+                    <span class="tooltiptext">Type to filter the displayed results by item name or category. This only filters what's currently shown - it doesn't fetch new data.</span>
+                </span>
             </div>
             <div class="table-container">
                 <table id="resultsTable">
                     <thead>
                         <tr>
-                            <th class="sortable" data-column="itemName">Item Name</th>
-                            <th class="sortable" data-column="tier">Tier</th>
-                            <th class="sortable" data-column="common">Common</th>
-                            <th class="sortable" data-column="uncommon">Uncommon</th>
-                            <th class="sortable" data-column="rare">Rare</th>
-                            <th class="sortable" data-column="epic">Epic</th>
-                            <th class="sortable" data-column="legendary">Legendary</th>
-                            <th class="sortable" data-column="category">Category</th>
+                            <th class="sortable" data-column="itemName">Item Name
+                                <span class="tooltip">
+                                    <span class="help-icon" style="width: 14px; height: 14px; font-size: 10px;">?</span>
+                                    <span class="tooltiptext">Click to sort by item name. Click links to view items on bitjita.com.</span>
+                                </span>
+                            </th>
+                            <th class="sortable" data-column="tier">Tier
+                                <span class="tooltip">
+                                    <span class="help-icon" style="width: 14px; height: 14px; font-size: 10px;">?</span>
+                                    <span class="tooltiptext">Click to sort by tier level. Higher tiers are generally more powerful.</span>
+                                </span>
+                            </th>
+                            <th class="sortable" data-column="common">Common
+                                <span class="tooltip">
+                                    <span class="help-icon" style="width: 14px; height: 14px; font-size: 10px;">?</span>
+                                    <span class="tooltiptext">Lowest sell price for Common rarity of this item. Click column to sort by price.</span>
+                                </span>
+                            </th>
+                            <th class="sortable" data-column="uncommon">Uncommon
+                                <span class="tooltip">
+                                    <span class="help-icon" style="width: 14px; height: 14px; font-size: 10px;">?</span>
+                                    <span class="tooltiptext">Lowest sell price for Uncommon rarity of this item. Click column to sort by price.</span>
+                                </span>
+                            </th>
+                            <th class="sortable" data-column="rare">Rare
+                                <span class="tooltip">
+                                    <span class="help-icon" style="width: 14px; height: 14px; font-size: 10px;">?</span>
+                                    <span class="tooltiptext">Lowest sell price for Rare rarity of this item. Click column to sort by price.</span>
+                                </span>
+                            </th>
+                            <th class="sortable" data-column="epic">Epic
+                                <span class="tooltip">
+                                    <span class="help-icon" style="width: 14px; height: 14px; font-size: 10px;">?</span>
+                                    <span class="tooltiptext">Lowest sell price for Epic rarity of this item. Click column to sort by price.</span>
+                                </span>
+                            </th>
+                            <th class="sortable" data-column="legendary">Legendary
+                                <span class="tooltip">
+                                    <span class="help-icon" style="width: 14px; height: 14px; font-size: 10px;">?</span>
+                                    <span class="tooltiptext">Lowest sell price for Legendary rarity of this item. Click column to sort by price.</span>
+                                </span>
+                            </th>
+                            <th class="sortable" data-column="category">Category
+                                <span class="tooltip">
+                                    <span class="help-icon" style="width: 14px; height: 14px; font-size: 10px;">?</span>
+                                    <span class="tooltiptext">Item category (e.g., Miner Tool, Metal Armor). Click to sort.</span>
+                                </span>
+                            </th>
                         </tr>
                     </thead>
                     <tbody id="resultsBody">
