@@ -104,9 +104,11 @@ run_server(8001)  # Change 8000 to 8001 or any available port
 The app automatically detects whether to use local or remote API:
 
 - **Local Development**: `API_BASE_URL = ''` (empty string) - uses `/api/` paths handled by `proxy-server.py`
-- **GitHub Pages**: `API_BASE_URL = 'https://your-worker.workers.dev'` - uses your Cloudflare Worker
+- **GitHub Pages**: `API_BASE_URL = 'https://bitcraft-market-proxy.jbaird-cb6.workers.dev'` - uses your Cloudflare Worker
 
-To switch, simply update the `API_BASE_URL` constant at the top of `index.html` and `gear-finder.html`.
+To switch, simply update the `API_BASE_URL` constant at the top of `index.html`, `gear-finder.html`, and `market-monitor.html`.
+
+**Current Configuration:** This repository is configured for GitHub Pages with the worker URL `https://bitcraft-market-proxy.jbaird-cb6.workers.dev`
 
 ---
 

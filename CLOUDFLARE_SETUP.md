@@ -33,14 +33,17 @@ This guide will help you deploy the CORS proxy to Cloudflare Workers so your Git
 
 4. **Copy Your Worker URL**
    - You'll see a URL like: `https://bitcraft-market-proxy.YOUR_SUBDOMAIN.workers.dev`
+   - For this project, the URL is: `https://bitcraft-market-proxy.jbaird-cb6.workers.dev`
    - Copy this URL - you'll need it in the next step
 
 5. **Update Your HTML Files**
    - Open `index.html` in a text editor
    - Find the line near the top that says: `const API_BASE_URL = '';`
-   - Replace it with: `const API_BASE_URL = 'https://bitcraft-market-proxy.YOUR_SUBDOMAIN.workers.dev';`
-   - Do the same for `gear-finder.html`
-   - Save both files
+   - Replace it with: `const API_BASE_URL = 'https://bitcraft-market-proxy.jbaird-cb6.workers.dev';`
+   - Do the same for `gear-finder.html` and `market-monitor.html`
+   - Save all files
+
+   **Note:** For this repository, the API_BASE_URL is already configured to `https://bitcraft-market-proxy.jbaird-cb6.workers.dev`
 
 6. **Commit and Push to GitHub**
    ```bash
@@ -79,12 +82,14 @@ This guide will help you deploy the CORS proxy to Cloudflare Workers so your Git
    After deployment, Wrangler will show your worker URL:
    ```
    Published bitcraft-market-proxy (X.XX sec)
-   https://bitcraft-market-proxy.YOUR_SUBDOMAIN.workers.dev
+   https://bitcraft-market-proxy.jbaird-cb6.workers.dev
    ```
 
 5. **Update HTML Files**
    - Follow step 5 from Option 1 above
-   - Update both `index.html` and `gear-finder.html` with your worker URL
+   - Update `index.html`, `gear-finder.html`, and `market-monitor.html` with your worker URL
+
+   **Note:** For this repository, the worker URL is already configured as `https://bitcraft-market-proxy.jbaird-cb6.workers.dev`
 
 6. **Deploy to GitHub Pages**
    - Commit and push your changes
@@ -106,7 +111,8 @@ After setup, verify everything works:
 ## Troubleshooting
 
 ### Getting 405 Errors Still?
-- Make sure you updated the `API_BASE_URL` in BOTH `index.html` and `gear-finder.html`
+- Make sure you updated the `API_BASE_URL` in ALL HTML files (`index.html`, `gear-finder.html`, and `market-monitor.html`)
+- The configured URL should be: `https://bitcraft-market-proxy.jbaird-cb6.workers.dev`
 - Make sure you saved and pushed the changes to GitHub
 - Wait a few minutes for GitHub Pages to rebuild (check the Actions tab)
 

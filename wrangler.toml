@@ -10,10 +10,10 @@ compatibility_date = "2024-01-01"
 # - No credit card required
 # - Perfect for this use case
 
-# After deployment, your worker will be available at:
-# https://bitcraft-market-proxy.YOUR_SUBDOMAIN.workers.dev
+# Your worker is available at:
+# https://bitcraft-market-proxy.jbaird-cb6.workers.dev
 #
-# Update API_BASE_URL in index.html and gear-finder.html with this URL
+# API_BASE_URL has been configured in index.html, gear-finder.html, and market-monitor.html
 
 # Durable Objects Configuration
 # Used for market monitoring state management

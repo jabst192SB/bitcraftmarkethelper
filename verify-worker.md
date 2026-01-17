@@ -26,21 +26,23 @@ npx wrangler deploy --name bitcraft-market-proxy
 
 ## Test the Worker Endpoints
 
-Once you know the worker URL (format: `https://bitcraft-market-proxy.YOUR_SUBDOMAIN.workers.dev`), test these:
+Your worker URL is: `https://bitcraft-market-proxy.jbaird-cb6.workers.dev`
+
+Test these endpoints:
 
 ### Test proxy endpoint (PowerShell):
 ```powershell
-Invoke-WebRequest -Uri "https://bitcraft-market-proxy.YOUR_SUBDOMAIN.workers.dev/api/market?claimEntityId=288230376332988523"
+Invoke-WebRequest -Uri "https://bitcraft-market-proxy.jbaird-cb6.workers.dev/api/market?claimEntityId=288230376332988523"
 ```
 
 ### Test market monitor state:
 ```powershell
-Invoke-WebRequest -Uri "https://bitcraft-market-proxy.YOUR_SUBDOMAIN.workers.dev/api/monitor/state"
+Invoke-WebRequest -Uri "https://bitcraft-market-proxy.jbaird-cb6.workers.dev/api/monitor/state"
 ```
 
 ### Test market monitor changes:
 ```powershell
-Invoke-WebRequest -Uri "https://bitcraft-market-proxy.YOUR_SUBDOMAIN.workers.dev/api/monitor/changes"
+Invoke-WebRequest -Uri "https://bitcraft-market-proxy.jbaird-cb6.workers.dev/api/monitor/changes"
 ```
 
 ## Troubleshooting
