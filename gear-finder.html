@@ -435,6 +435,223 @@
             background-color: #3a3a3a;
         }
 
+        /* Saved Searches Styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 3000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background-color: #2a2a2a;
+            padding: 30px;
+            border-radius: 8px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            border: 2px solid #4a9eff;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #4a4a4a;
+        }
+
+        .modal-header h2 {
+            color: #4a9eff;
+            margin: 0;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: #e0e0e0;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+
+        .modal-close:hover {
+            background-color: #4a4a4a;
+        }
+
+        .saved-search-item {
+            background-color: #3a3a3a;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            border-left: 3px solid #4a9eff;
+        }
+
+        .saved-search-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .saved-search-name {
+            color: #e0e0e0;
+            font-weight: 600;
+            font-size: 16px;
+            flex: 1;
+        }
+
+        .saved-search-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .saved-search-btn {
+            padding: 6px 12px;
+            background-color: #4a4a4a;
+            color: #e0e0e0;
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .saved-search-btn:hover {
+            background-color: #5a5a5a;
+        }
+
+        .saved-search-btn.load {
+            background-color: #4a9eff;
+            color: #1a1a1a;
+        }
+
+        .saved-search-btn.load:hover {
+            background-color: #6bb3ff;
+        }
+
+        .saved-search-btn.delete {
+            background-color: #f87171;
+            color: #1a1a1a;
+        }
+
+        .saved-search-btn.delete:hover {
+            background-color: #fb923c;
+        }
+
+        .saved-search-details {
+            color: #b0b0b0;
+            font-size: 13px;
+        }
+
+        .saved-search-type {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            background-color: #4a4a4a;
+            color: #4a9eff;
+            font-size: 11px;
+            text-transform: uppercase;
+            margin-right: 8px;
+        }
+
+        .modal-footer {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 2px solid #4a4a4a;
+            display: flex;
+            gap: 10px;
+        }
+
+        .modal-button {
+            padding: 10px 20px;
+            background-color: #4a9eff;
+            color: #1a1a1a;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .modal-button:hover {
+            background-color: #6bb3ff;
+        }
+
+        .modal-button.secondary {
+            background-color: #4a4a4a;
+            color: #e0e0e0;
+        }
+
+        .modal-button.secondary:hover {
+            background-color: #5a5a5a;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #b0b0b0;
+            padding: 30px;
+            font-style: italic;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background-color: #2a2a2a;
+            color: #e0e0e0;
+            padding: 15px 20px;
+            border-radius: 8px;
+            border: 2px solid #4a9eff;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            z-index: 4000;
+            display: none;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .toast.success {
+            border-color: #4ade80;
+        }
+
+        .toast.error {
+            border-color: #f87171;
+        }
+
+        .toast.warning {
+            border-color: #fb923c;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
         @media (max-width: 768px) {
             .filters-row {
                 flex-direction: column;
@@ -454,6 +671,16 @@
                 width: 200px;
                 margin-left: -100px;
             }
+
+            .modal-content {
+                padding: 20px;
+            }
+
+            .toast {
+                right: 15px;
+                left: 15px;
+                bottom: 15px;
+            }
         }
     </style>
 </head>
@@ -472,6 +699,24 @@
         </div>
 
         <div class="filters-section">
+            <div style="margin-bottom: 15px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <div style="flex: 1; min-width: 250px;">
+                    <label for="savedSearchSelect">Saved Searches
+                        <span class="tooltip">
+                            <span class="help-icon">?</span>
+                            <span class="tooltiptext">Load a previously saved search. Save your current filters using the button below to quickly access them later.</span>
+                        </span>
+                    </label>
+                    <select id="savedSearchSelect">
+                        <option value="">-- Load Saved Search --</option>
+                    </select>
+                </div>
+                <div style="display: flex; gap: 10px; align-items: flex-end;">
+                    <button id="saveSearchButton" class="refresh-button" style="background-color: #4ade80;">💾 Save Filters</button>
+                    <button id="manageSearchesButton" class="refresh-button" style="background-color: #a78bfa;">⚙️ Manage</button>
+                    <span id="savedIndicator" style="display: none; color: #4ade80; font-size: 14px;">⭐ Saved</span>
+                </div>
+            </div>
             <div class="filters-row">
                 <div class="filter-group">
                     <label for="categoryFilter">Category (Ctrl+Click for multiple)
@@ -609,6 +854,27 @@
         </div>
     </div>
 
+    <!-- Manage Saved Searches Modal -->
+    <div class="modal-overlay" id="manageSearchesModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📚 Manage Saved Searches</h2>
+                <button class="modal-close" onclick="closeManageModal()">&times;</button>
+            </div>
+            <div id="savedSearchesList"></div>
+            <div class="modal-footer">
+                <button class="modal-button" onclick="exportSearches()">📥 Export</button>
+                <button class="modal-button secondary" onclick="importSearches()">📤 Import</button>
+                <button class="modal-button secondary" onclick="clearAllSearches()">🗑️ Clear All</button>
+            </div>
+            <input type="file" id="importFileInput" style="display: none;" accept=".json">
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="toast"></div>
+
+    <script src="savedSearches.js"></script>
     <script>
         // ==========================================
         // API CONFIGURATION
@@ -1247,6 +1513,438 @@
 
         // Initialize app
         loadItems();
+
+        // ==========================================
+        // SAVED SEARCHES FUNCTIONALITY
+        // ==========================================
+
+        // Initialize saved searches UI
+        function initSavedSearches() {
+            updateSavedSearchesDropdown();
+            updateSavedIndicator();
+
+            // Listen for storage changes from other tabs
+            SavedSearches.onStorageChange(() => {
+                updateSavedSearchesDropdown();
+                updateSavedIndicator();
+            });
+        }
+
+        // Get current filter configuration
+        function getCurrentConfig() {
+            const categorySelect = document.getElementById('categoryFilter');
+            const tierSelect = document.getElementById('tierFilter');
+            const raritySelect = document.getElementById('rarityFilter');
+
+            return {
+                categories: Array.from(categorySelect.selectedOptions).map(opt => opt.value),
+                tiers: Array.from(tierSelect.selectedOptions).map(opt => parseInt(opt.value)),
+                rarities: Array.from(raritySelect.selectedOptions).map(opt => opt.value)
+            };
+        }
+
+        // Load configuration into filters
+        function loadConfig(config) {
+            const categorySelect = document.getElementById('categoryFilter');
+            const tierSelect = document.getElementById('tierFilter');
+            const raritySelect = document.getElementById('rarityFilter');
+
+            // Clear all selections
+            Array.from(categorySelect.options).forEach(opt => opt.selected = false);
+            Array.from(tierSelect.options).forEach(opt => opt.selected = false);
+            Array.from(raritySelect.options).forEach(opt => opt.selected = false);
+
+            // Apply saved selections
+            if (config.categories) {
+                config.categories.forEach(val => {
+                    const opt = Array.from(categorySelect.options).find(o => o.value === val);
+                    if (opt) opt.selected = true;
+                });
+            }
+
+            if (config.tiers) {
+                config.tiers.forEach(val => {
+                    const opt = Array.from(tierSelect.options).find(o => parseInt(o.value) === val);
+                    if (opt) opt.selected = true;
+                });
+            }
+
+            if (config.rarities) {
+                config.rarities.forEach(val => {
+                    const opt = Array.from(raritySelect.options).find(o => o.value === val);
+                    if (opt) opt.selected = true;
+                });
+            }
+        }
+
+        // Update saved searches dropdown
+        function updateSavedSearchesDropdown() {
+            const select = document.getElementById('savedSearchSelect');
+            const searches = SavedSearches.getAll('gear-finder');
+
+            // Clear and rebuild dropdown
+            select.innerHTML = '<option value="">-- Load Saved Search --</option>';
+
+            searches
+                .sort((a, b) => b.timestamp - a.timestamp)
+                .forEach(search => {
+                    const option = document.createElement('option');
+                    option.value = search.id;
+                    option.textContent = search.name;
+                    select.appendChild(option);
+                });
+        }
+
+        // Check if current filters match a saved search
+        function updateSavedIndicator() {
+            const config = getCurrentConfig();
+
+            // Only check if at least one filter is selected
+            const hasFilters = config.categories.length > 0 ||
+                              config.tiers.length > 0 ||
+                              config.rarities.length > 0;
+
+            if (!hasFilters) {
+                document.getElementById('savedIndicator').style.display = 'none';
+                return;
+            }
+
+            const duplicate = SavedSearches.findDuplicate(config, 'gear-finder');
+            document.getElementById('savedIndicator').style.display = duplicate ? 'inline' : 'none';
+        }
+
+        // Save current filters
+        document.getElementById('saveSearchButton').addEventListener('click', function() {
+            const config = getCurrentConfig();
+
+            // Check if at least one filter is selected
+            const hasFilters = config.categories.length > 0 ||
+                              config.tiers.length > 0 ||
+                              config.rarities.length > 0;
+
+            if (!hasFilters) {
+                showToast('Please select at least one filter first', 'error');
+                return;
+            }
+
+            // Generate default name
+            const parts = [];
+            if (config.tiers.length > 0) {
+                parts.push(`Tier ${config.tiers.sort((a, b) => a - b).join(',')}`);
+            }
+            if (config.categories.length > 0) {
+                parts.push(config.categories[0]);
+                if (config.categories.length > 1) {
+                    parts.push(`+${config.categories.length - 1} more`);
+                }
+            }
+            if (config.rarities.length > 0) {
+                parts.push(config.rarities[0]);
+                if (config.rarities.length > 1) {
+                    parts.push(`+${config.rarities.length - 1} more`);
+                }
+            }
+            const defaultName = parts.join(' - ') || 'Untitled Search';
+
+            // Prompt for custom name
+            const customName = prompt('Enter a name for this search:', defaultName);
+
+            if (customName === null) {
+                return; // User cancelled
+            }
+
+            const result = SavedSearches.save(config, 'gear-finder', customName.trim() || null);
+
+            if (result.success) {
+                showToast('Filters saved successfully!', 'success');
+                updateSavedSearchesDropdown();
+                updateSavedIndicator();
+
+                if (result.warning) {
+                    showToast(result.warning, 'warning');
+                }
+            } else {
+                showToast(result.error, 'error');
+            }
+        });
+
+        // Load saved search
+        document.getElementById('savedSearchSelect').addEventListener('change', function() {
+            const searchId = this.value;
+
+            if (!searchId) return;
+
+            const search = SavedSearches.getById(searchId);
+
+            if (search) {
+                // Load config into filters
+                loadConfig(search.config);
+
+                // Trigger filter change to load data
+                handleFilterChange();
+
+                showToast(`Loaded: ${search.name}`, 'success');
+            } else {
+                showToast('Search not found', 'error');
+            }
+
+            // Reset dropdown
+            this.value = '';
+        });
+
+        // Update indicator when filters change
+        document.getElementById('categoryFilter').addEventListener('change', updateSavedIndicator);
+        document.getElementById('tierFilter').addEventListener('change', updateSavedIndicator);
+        document.getElementById('rarityFilter').addEventListener('change', updateSavedIndicator);
+
+        // Open manage modal
+        document.getElementById('manageSearchesButton').addEventListener('click', function() {
+            openManageModal();
+        });
+
+        function openManageModal() {
+            renderSavedSearchesList();
+            document.getElementById('manageSearchesModal').classList.add('active');
+        }
+
+        function closeManageModal() {
+            document.getElementById('manageSearchesModal').classList.remove('active');
+        }
+
+        // Close modal when clicking outside
+        document.getElementById('manageSearchesModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeManageModal();
+            }
+        });
+
+        // Render saved searches list in modal
+        function renderSavedSearchesList() {
+            const container = document.getElementById('savedSearchesList');
+            const searches = SavedSearches.getAll('gear-finder');
+
+            if (searches.length === 0) {
+                container.innerHTML = '<div class="empty-state">No saved searches yet. Save your first search to quickly access it later!</div>';
+                return;
+            }
+
+            // Sort by timestamp (newest first)
+            searches.sort((a, b) => b.timestamp - a.timestamp);
+
+            container.innerHTML = searches.map(search => {
+                const date = new Date(search.timestamp).toLocaleString();
+
+                // Build description
+                const parts = [];
+                if (search.config.categories && search.config.categories.length > 0) {
+                    parts.push(`Categories: ${search.config.categories.join(', ')}`);
+                }
+                if (search.config.tiers && search.config.tiers.length > 0) {
+                    parts.push(`Tiers: ${search.config.tiers.join(', ')}`);
+                }
+                if (search.config.rarities && search.config.rarities.length > 0) {
+                    parts.push(`Rarities: ${search.config.rarities.join(', ')}`);
+                }
+                const description = parts.join(' • ');
+
+                return `
+                    <div class="saved-search-item">
+                        <div class="saved-search-header">
+                            <div class="saved-search-name">${escapeHtml(search.name)}</div>
+                            <div class="saved-search-actions">
+                                <button class="saved-search-btn load" onclick="loadSavedSearch('${search.id}')">📂 Load</button>
+                                <button class="saved-search-btn" onclick="renameSavedSearch('${search.id}')">✏️ Rename</button>
+                                <button class="saved-search-btn delete" onclick="deleteSavedSearch('${search.id}')">🗑️ Delete</button>
+                            </div>
+                        </div>
+                        <div class="saved-search-details">
+                            <span class="saved-search-type">Gear Finder</span>
+                            ${description}
+                            <br><small>Saved: ${date}</small>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Load saved search from modal
+        function loadSavedSearch(id) {
+            const search = SavedSearches.getById(id);
+
+            if (search) {
+                // Load config into filters
+                loadConfig(search.config);
+
+                // Trigger filter change to load data
+                handleFilterChange();
+
+                closeManageModal();
+                showToast(`Loaded: ${search.name}`, 'success');
+            } else {
+                showToast('Search not found', 'error');
+            }
+        }
+
+        // Rename saved search
+        function renameSavedSearch(id) {
+            const search = SavedSearches.getById(id);
+
+            if (!search) {
+                showToast('Search not found', 'error');
+                return;
+            }
+
+            const newName = prompt('Enter new name:', search.name);
+
+            if (newName === null) {
+                return; // User cancelled
+            }
+
+            if (newName.trim()) {
+                const result = SavedSearches.update(id, { name: newName.trim() });
+
+                if (result.success) {
+                    showToast('Search renamed successfully', 'success');
+                    renderSavedSearchesList();
+                    updateSavedSearchesDropdown();
+                } else {
+                    showToast(result.error, 'error');
+                }
+            } else {
+                showToast('Name cannot be empty', 'error');
+            }
+        }
+
+        // Delete saved search
+        function deleteSavedSearch(id) {
+            const search = SavedSearches.getById(id);
+
+            if (!search) {
+                showToast('Search not found', 'error');
+                return;
+            }
+
+            if (!confirm(`Delete "${search.name}"?`)) {
+                return;
+            }
+
+            const result = SavedSearches.delete(id);
+
+            if (result.success) {
+                showToast('Search deleted successfully', 'success');
+                renderSavedSearchesList();
+                updateSavedSearchesDropdown();
+                updateSavedIndicator();
+            } else {
+                showToast(result.error, 'error');
+            }
+        }
+
+        // Export searches
+        function exportSearches() {
+            const searches = SavedSearches.getAll('gear-finder');
+
+            if (searches.length === 0) {
+                showToast('No searches to export', 'warning');
+                return;
+            }
+
+            const json = SavedSearches.exportToJSON();
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `bitcraft-gear-finder-searches-${Date.now()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+
+            showToast('Searches exported successfully', 'success');
+        }
+
+        // Import searches
+        function importSearches() {
+            const fileInput = document.getElementById('importFileInput');
+
+            fileInput.onchange = function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const result = SavedSearches.importFromJSON(event.target.result, true);
+
+                    if (result.success) {
+                        showToast(`Imported ${result.imported} searches (${result.total} total)`, 'success');
+                        renderSavedSearchesList();
+                        updateSavedSearchesDropdown();
+
+                        if (result.warning) {
+                            showToast(result.warning, 'warning');
+                        }
+                    } else {
+                        showToast(result.error, 'error');
+                    }
+                };
+                reader.readAsText(file);
+
+                // Reset file input
+                fileInput.value = '';
+            };
+
+            fileInput.click();
+        }
+
+        // Clear all searches
+        function clearAllSearches() {
+            const searches = SavedSearches.getAll('gear-finder');
+
+            if (searches.length === 0) {
+                showToast('No searches to clear', 'warning');
+                return;
+            }
+
+            if (!confirm(`Delete all ${searches.length} saved searches? This cannot be undone.`)) {
+                return;
+            }
+
+            const result = SavedSearches.clear();
+
+            if (result.success) {
+                showToast('All searches cleared', 'success');
+                renderSavedSearchesList();
+                updateSavedSearchesDropdown();
+                updateSavedIndicator();
+            } else {
+                showToast(result.error, 'error');
+            }
+        }
+
+        // Show toast notification
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${type}`;
+            toast.style.display = 'block';
+
+            setTimeout(() => {
+                toast.style.display = 'none';
+            }, 3000);
+        }
+
+        // HTML escape helper
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+
+        // Initialize saved searches on page load
+        window.addEventListener('DOMContentLoaded', initSavedSearches);
     </script>
 </body>
 </html>
