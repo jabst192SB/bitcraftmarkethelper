@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Help & FAQ - Bitcraft Market Helper</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a1a;
+            color: #e0e0e0;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #4a9eff;
+        }
+
+        h2 {
+            color: #4a9eff;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #4a4a4a;
+        }
+
+        h3 {
+            color: #6bb3ff;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+
+        .nav-links {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .nav-links a {
+            color: #4a9eff;
+            text-decoration: none;
+            margin: 0 15px;
+            padding: 8px 16px;
+            border-radius: 4px;
+            background-color: #2a2a2a;
+            display: inline-block;
+        }
+
+        .nav-links a:hover {
+            background-color: #3a3a3a;
+        }
+
+        .content-section {
+            background-color: #2a2a2a;
+            padding: 25px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .faq-item {
+            background-color: #3a3a3a;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-radius: 6px;
+            border-left: 3px solid #4a9eff;
+        }
+
+        .faq-question {
+            color: #4a9eff;
+            font-weight: 600;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+
+        .faq-answer {
+            color: #e0e0e0;
+            line-height: 1.7;
+        }
+
+        ul, ol {
+            margin-left: 20px;
+            margin-top: 10px;
+            margin-bottom: 10px;
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+
+        code {
+            background-color: #3a3a3a;
+            padding: 2px 6px;
+            border-radius: 3px;
+            color: #4ade80;
+            font-family: 'Courier New', monospace;
+        }
+
+        .tip {
+            background-color: #2a3a2a;
+            border-left: 3px solid #4ade80;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+
+        .tip strong {
+            color: #4ade80;
+        }
+
+        .warning {
+            background-color: #3a2a2a;
+            border-left: 3px solid #fb923c;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+
+        .warning strong {
+            color: #fb923c;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .feature-card {
+            background-color: #3a3a3a;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 3px solid #4a9eff;
+        }
+
+        .feature-card h4 {
+            color: #4a9eff;
+            margin-bottom: 8px;
+        }
+
+        .toc {
+            background-color: #3a3a3a;
+            padding: 20px;
+            border-radius: 6px;
+            margin-bottom: 30px;
+        }
+
+        .toc h3 {
+            color: #4a9eff;
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+
+        .toc ul {
+            list-style: none;
+            margin-left: 0;
+        }
+
+        .toc a {
+            color: #6bb3ff;
+            text-decoration: none;
+        }
+
+        .toc a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 768px) {
+            .nav-links a {
+                display: block;
+                margin: 10px 0;
+            }
+
+            .feature-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📚 Help & FAQ</h1>
+
+        <div class="nav-links">
+            <a href="index.html">🎮 Market Search</a>
+            <a href="gear-finder.html">⚔️ Gear Finder</a>
+        </div>
+
+        <div class="toc">
+            <h3>Table of Contents</h3>
+            <ul>
+                <li><a href="#overview">Overview</a></li>
+                <li><a href="#market-search">Market Search Page</a></li>
+                <li><a href="#gear-finder">Gear Finder Page</a></li>
+                <li><a href="#features">Key Features</a></li>
+                <li><a href="#faq">Frequently Asked Questions</a></li>
+                <li><a href="#tips">Tips & Tricks</a></li>
+                <li><a href="#troubleshooting">Troubleshooting</a></li>
+            </ul>
+        </div>
+
+        <div class="content-section" id="overview">
+            <h2>📖 Overview</h2>
+            <p>Bitcraft Market Helper is a web-based tool that helps you browse and analyze the Bitcraft marketplace. It provides two main interfaces:</p>
+
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <h4>🎮 Market Search</h4>
+                    <p>Search for individual items and view detailed market statistics, buy/sell orders, and pricing information.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>⚔️ Gear Finder</h4>
+                    <p>Browse and compare gear items by category, tier, and rarity with prices across all rarity levels in a table format.</p>
+                </div>
+            </div>
+
+            <div class="tip">
+                <strong>💡 Tip:</strong> All market data is provided by <a href="https://bitjita.com" target="_blank" style="color: #4a9eff;">bitjita.com</a> and is updated in real-time when you search or refresh.
+            </div>
+        </div>
+
+        <div class="content-section" id="market-search">
+            <h2>🎮 Market Search Page</h2>
+
+            <h3>How to Use</h3>
+            <ol>
+                <li><strong>Search for Items:</strong> Start typing an item name in the search box. A dropdown will appear with matching items.</li>
+                <li><strong>Select an Item:</strong>
+                    <ul>
+                        <li>Click an item from the dropdown to view detailed market data</li>
+                        <li>Press <code>Enter</code> to see multiple matching items in a table</li>
+                    </ul>
+                </li>
+                <li><strong>Filter by Tier:</strong> Use the tier dropdown to narrow your search to specific item tiers.</li>
+                <li><strong>Region Filter:</strong> By default, only Solvenar (Region 4) data is shown. Check "Show all regions" to include data from all regions.</li>
+            </ol>
+
+            <h3>Understanding the Data</h3>
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <h4>Market Statistics</h4>
+                    <ul>
+                        <li><strong>Lowest Sell:</strong> Best price to buy</li>
+                        <li><strong>Highest Buy:</strong> Best price to sell</li>
+                        <li><strong>Recent Sell Orders:</strong> Number of active sell listings</li>
+                        <li><strong>Recent Buy Orders:</strong> Number of active buy requests</li>
+                    </ul>
+                </div>
+                <div class="feature-card">
+                    <h4>Order Lists</h4>
+                    <ul>
+                        <li>Shows claim names (sellers/buyers)</li>
+                        <li>Quantity available or wanted</li>
+                        <li>Price per unit</li>
+                        <li>Click 📋 to copy prices</li>
+                    </ul>
+                </div>
+            </div>
+
+            <h3>Multi-Item Search</h3>
+            <p>Press <code>Enter</code> after typing a search term to see up to 20 matching items in a table format. This is great for comparing prices across similar items.</p>
+
+            <div class="tip">
+                <strong>💡 Tip:</strong> Click on item names in search results to open them on bitjita.com for more details or to place orders.
+            </div>
+        </div>
+
+        <div class="content-section" id="gear-finder">
+            <h2>⚔️ Gear Finder Page</h2>
+
+            <h3>How to Use</h3>
+            <ol>
+                <li><strong>Select Filters:</strong> Choose one or more options from Category, Tier, and/or Rarity filters.</li>
+                <li><strong>Multiple Selection:</strong> Hold <code>Ctrl</code> (or <code>Cmd</code> on Mac) and click to select multiple options in each filter.</li>
+                <li><strong>View Results:</strong> Results appear automatically in a table showing prices for each rarity level.</li>
+                <li><strong>Sort Data:</strong> Click any column header to sort by that column (click again to reverse order).</li>
+                <li><strong>Filter Results:</strong> Use the search box in the results section to filter displayed items by name or category.</li>
+            </ol>
+
+            <h3>Available Categories</h3>
+            <ul>
+                <li>Blacksmith Tool, Carpenter Tool, Mason Tool, Tailor Tool</li>
+                <li>Farmer Tool, Fisher Tool, Forager Tool, Forester Tool, Hunter Tool, Miner Tool, Scholar Tool, Leatherworker Tool</li>
+                <li>Cloth Clothing, Leather Clothing, Metal Armor</li>
+            </ul>
+
+            <h3>Rarity Levels</h3>
+            <p>Items can have different rarities, each with different stats and prices:</p>
+            <ul>
+                <li><strong>Common:</strong> Basic items (gray)</li>
+                <li><strong>Uncommon:</strong> Improved items (green)</li>
+                <li><strong>Rare:</strong> Superior items (blue)</li>
+                <li><strong>Epic:</strong> Exceptional items (purple)</li>
+                <li><strong>Legendary:</strong> Best-in-class items (orange)</li>
+            </ul>
+
+            <div class="tip">
+                <strong>💡 Tip:</strong> The table shows the lowest sell price for each rarity. "N/A" means there are currently no market listings for that rarity.
+            </div>
+        </div>
+
+        <div class="content-section" id="features">
+            <h2>✨ Key Features</h2>
+
+            <div class="faq-item">
+                <div class="faq-question">🔄 Refresh Data</div>
+                <div class="faq-answer">
+                    Click the "Refresh Data" button to reload market information with the latest prices. The button becomes active after you've searched for items or applied filters.
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">📋 Copy to Clipboard</div>
+                <div class="faq-answer">
+                    Click the 📋 icon next to prices in Market Search to copy the price to your clipboard for easy use in-game or elsewhere.
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">🔗 External Links</div>
+                <div class="faq-answer">
+                    Click on item names in results tables to open the item's page on bitjita.com, where you can view more details or place orders.
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">🌍 Region Filtering</div>
+                <div class="faq-answer">
+                    By default, results show only Solvenar (Region 4) data for faster loading. Enable "Show all regions" to see market data from all game regions.
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">⚡ Fast Bulk Loading</div>
+                <div class="faq-answer">
+                    When viewing all regions, the app uses a fast bulk API to load data for multiple items simultaneously, making searches much quicker.
+                </div>
+            </div>
+        </div>
+
+        <div class="content-section" id="faq">
+            <h2>❓ Frequently Asked Questions</h2>
+
+            <div class="faq-item">
+                <div class="faq-question">Q: Where does the market data come from?</div>
+                <div class="faq-answer">
+                    All market data is provided by <a href="https://bitjita.com" target="_blank" style="color: #4a9eff;">bitjita.com</a>, which aggregates real-time market information from the Bitcraft game.
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">Q: How often is the data updated?</div>
+                <div class="faq-answer">
+                    The data is fetched in real-time when you search or refresh. Market conditions change frequently, so use the Refresh button to get the latest information.
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">Q: Why do I see "N/A" for some prices?</div>
+                <div class="faq-answer">
+                    "N/A" means there are currently no active market listings for that item or rarity. This could mean the item is not currently being sold or bought by anyone.
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">Q: Can I place orders through this tool?</div>
+                <div class="faq-answer">
+                    No, this is a read-only tool for browsing and analyzing market data. To place orders, click on item names to visit bitjita.com or use the in-game marketplace.
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">Q: What's the difference between "Highest Buy" and "Lowest Sell"?</div>
+                <div class="faq-answer">
+                    <ul>
+                        <li><strong>Lowest Sell:</strong> The cheapest price someone is willing to sell for. This is the best price if you want to <strong>buy</strong> the item.</li>
+                        <li><strong>Highest Buy:</strong> The highest price someone is willing to pay. This is the best price if you want to <strong>sell</strong> the item.</li>
+                        <li>The difference between these is called the "spread" - it represents the market's buying and selling gap.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">Q: Why is the app showing "Failed to fetch market data"?</div>
+                <div class="faq-answer">
+                    This could happen due to:
+                    <ul>
+                        <li>Network connectivity issues</li>
+                        <li>The bitjita.com API being temporarily unavailable</li>
+                        <li>The item having no market data available</li>
+                    </ul>
+                    Try refreshing the page or checking your internet connection. If the problem persists, the API may be down temporarily.
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">Q: How do I select multiple filters in Gear Finder?</div>
+                <div class="faq-answer">
+                    Hold down <code>Ctrl</code> (Windows/Linux) or <code>Cmd</code> (Mac) while clicking to select multiple options in the Category, Tier, or Rarity dropdowns.
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">Q: What does the claim name represent?</div>
+                <div class="faq-answer">
+                    The claim name shows which player's claim (settlement) is selling or buying the item. This can help you identify specific sellers or find items from claims you prefer to trade with.
+                </div>
+            </div>
+        </div>
+
+        <div class="content-section" id="tips">
+            <h2>💡 Tips & Tricks</h2>
+
+            <div class="faq-item">
+                <div class="faq-question">Finding the Best Deals</div>
+                <div class="faq-answer">
+                    <ol>
+                        <li>Use Market Search to find specific items you need</li>
+                        <li>Check both "Lowest Sell" price and available quantities</li>
+                        <li>Compare prices across different rarities using the multi-item search</li>
+                        <li>Use Gear Finder to compare similar items (e.g., all Tier 3 tools)</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">Efficient Gear Shopping</div>
+                <div class="faq-answer">
+                    <ol>
+                        <li>Go to Gear Finder</li>
+                        <li>Select your desired category (e.g., "Miner Tool")</li>
+                        <li>Select your tier range</li>
+                        <li>Compare prices across all rarities at once</li>
+                        <li>Click column headers to sort by price</li>
+                        <li>Click item links to purchase on bitjita.com</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">Market Analysis</div>
+                <div class="faq-answer">
+                    <ul>
+                        <li>Use the "Recent Orders" counts to gauge market activity</li>
+                        <li>A large spread between Highest Buy and Lowest Sell indicates low market liquidity</li>
+                        <li>Compare regional prices by toggling "Show all regions"</li>
+                        <li>Check multiple tiers to find the best value for your budget</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="tip">
+                <strong>💡 Pro Tip:</strong> Bookmark both pages for quick access. Market Search is better for specific items, while Gear Finder excels at comparing similar items across rarities.
+            </div>
+        </div>
+
+        <div class="content-section" id="troubleshooting">
+            <h2>🔧 Troubleshooting</h2>
+
+            <div class="faq-item">
+                <div class="faq-question">Search Results Not Appearing</div>
+                <div class="faq-answer">
+                    <ul>
+                        <li>Make sure you've typed at least one character</li>
+                        <li>Check if your tier filter is too restrictive</li>
+                        <li>Try clearing the search and starting over</li>
+                        <li>Refresh the page to reload the items database</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">Tooltips Not Showing</div>
+                <div class="faq-answer">
+                    <ul>
+                        <li>Make sure you're hovering over the blue "?" icons</li>
+                        <li>On mobile, tooltips may not work - refer to this help page instead</li>
+                        <li>Check if your browser allows CSS hover effects</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">Slow Loading Times</div>
+                <div class="faq-answer">
+                    <ul>
+                        <li>When filtering by region, loading is slower as it makes individual API calls</li>
+                        <li>Use "Show all regions" for faster bulk loading</li>
+                        <li>Try selecting fewer items/filters at once</li>
+                        <li>Check your internet connection speed</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">Gear Finder Shows No Results</div>
+                <div class="faq-answer">
+                    <ul>
+                        <li>Make sure you've selected at least one filter (Category, Tier, or Rarity)</li>
+                        <li>Try broadening your filters (select more options)</li>
+                        <li>Check if there are actually items matching your criteria</li>
+                        <li>Refresh the page to reload data</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="warning">
+                <strong>⚠️ Note:</strong> This tool is unofficial and not affiliated with Bitcraft or Clockwork Labs. For official support, visit the Bitcraft community channels.
+            </div>
+        </div>
+
+        <div class="content-section">
+            <h2>📧 Need More Help?</h2>
+            <p>If you have questions that aren't answered here:</p>
+            <ul>
+                <li>Check <a href="https://bitjita.com" target="_blank" style="color: #4a9eff;">bitjita.com</a> for market-specific questions</li>
+                <li>Visit the Bitcraft community forums or Discord for game-related help</li>
+                <li>Report bugs or suggest features through the project's GitHub repository (if available)</li>
+            </ul>
+        </div>
+
+        <div class="nav-links" style="margin-top: 40px;">
+            <a href="index.html">🎮 Market Search</a>
+            <a href="gear-finder.html">⚔️ Gear Finder</a>
+        </div>
+    </div>
+</body>
+</html>
