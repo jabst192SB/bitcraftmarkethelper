@@ -244,48 +244,193 @@
         }
 
         .change-entry {
-            background-color: #3a3a3a;
-            padding: 12px;
-            margin-bottom: 10px;
-            border-radius: 4px;
-            border-left: 3px solid #4a4a4a;
+            background-color: #2a2a2a;
+            padding: 14px;
+            margin-bottom: 12px;
+            border-radius: 6px;
+            border: 1px solid #3a3a3a;
+            border-left: 4px solid #4a4a4a;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .change-entry:hover {
+            transform: translateX(2px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
         }
 
         .change-entry.new-item {
             border-left-color: #a78bfa;
+            background-color: rgba(167, 139, 250, 0.05);
         }
 
         .change-entry.order-increase {
             border-left-color: #4ade80;
+            background-color: rgba(74, 222, 128, 0.05);
         }
 
         .change-entry.order-decrease {
             border-left-color: #f87171;
+            background-color: rgba(248, 113, 113, 0.05);
         }
 
         .change-entry.item-removed {
             border-left-color: #fb923c;
+            background-color: rgba(251, 146, 60, 0.05);
         }
 
         .change-entry.order-change {
-            border-left-color: #fb923c;
+            border-left-color: #60a5fa;
+            background-color: rgba(96, 165, 250, 0.05);
+        }
+
+        .change-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 10px;
+            gap: 10px;
         }
 
         .change-timestamp {
-            color: #b0b0b0;
+            color: #808080;
             font-size: 11px;
-            margin-bottom: 5px;
+            white-space: nowrap;
+            margin-top: 2px;
+        }
+
+        .change-main-info {
+            flex: 1;
+            min-width: 0;
         }
 
         .change-item-name {
             color: #4a9eff;
-            font-weight: 500;
-            margin-bottom: 3px;
+            font-weight: 600;
+            font-size: 15px;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .change-item-link {
+            color: #4a9eff;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .change-item-link:hover {
+            color: #6bb3ff;
+            text-decoration: underline;
+        }
+
+        .change-item-meta {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .item-tier-badge {
+            display: inline-block;
+            padding: 2px 7px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 700;
+            background-color: rgba(74, 158, 255, 0.2);
+            color: #4a9eff;
+        }
+
+        .item-rarity-badge {
+            display: inline-block;
+            padding: 2px 7px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .item-rarity-badge.common {
+            background-color: rgba(156, 163, 175, 0.2);
+            color: #9ca3af;
+        }
+
+        .item-rarity-badge.uncommon {
+            background-color: rgba(34, 197, 94, 0.2);
+            color: #4ade80;
+        }
+
+        .item-rarity-badge.rare {
+            background-color: rgba(59, 130, 246, 0.2);
+            color: #60a5fa;
+        }
+
+        .item-rarity-badge.epic {
+            background-color: rgba(168, 85, 247, 0.2);
+            color: #a855f7;
+        }
+
+        .item-rarity-badge.legendary {
+            background-color: rgba(251, 191, 36, 0.2);
+            color: #fbbf24;
+        }
+
+        .item-rarity-badge.mythic {
+            background-color: rgba(244, 63, 94, 0.2);
+            color: #f43f5e;
         }
 
         .change-details {
             color: #e0e0e0;
             font-size: 13px;
+            margin-bottom: 8px;
+            line-height: 1.5;
+        }
+
+        .change-summary {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 8px;
+        }
+
+        .change-type-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .change-type-badge.new {
+            background-color: rgba(167, 139, 250, 0.25);
+            color: #c4b5fd;
+        }
+
+        .change-type-badge.updated {
+            background-color: rgba(96, 165, 250, 0.25);
+            color: #93c5fd;
+        }
+
+        .change-type-badge.removed {
+            background-color: rgba(248, 113, 113, 0.25);
+            color: #fca5a5;
+        }
+
+        .change-delta {
+            font-size: 12px;
+            color: #b0b0b0;
+        }
+
+        .change-delta.positive {
+            color: #4ade80;
+        }
+
+        .change-delta.negative {
+            color: #f87171;
         }
 
         .change-order-info {
@@ -337,18 +482,61 @@
         }
 
         .change-order-details {
-            margin-top: 6px;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #3a3a3a;
         }
 
         .individual-order {
-            padding: 4px 0;
+            padding: 10px;
+            margin-bottom: 8px;
             font-size: 12px;
             color: #e0e0e0;
-            border-bottom: 1px solid #3a3a3a;
+            background-color: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+            border-left: 3px solid #4a4a4a;
+            transition: background-color 0.2s;
         }
 
         .individual-order:last-child {
-            border-bottom: none;
+            margin-bottom: 0;
+        }
+
+        .individual-order:hover {
+            background-color: rgba(0, 0, 0, 0.3);
+        }
+
+        .individual-order.sell-order {
+            border-left-color: #f87171;
+        }
+
+        .individual-order.buy-order {
+            border-left-color: #4ade80;
+        }
+
+        .order-primary-info {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 6px;
+            flex-wrap: wrap;
+        }
+
+        .order-price-info {
+            display: flex;
+            gap: 12px;
+            font-size: 11px;
+            color: #b0b0b0;
+        }
+
+        .order-price-highlight {
+            color: #fbbf24;
+            font-weight: 600;
+        }
+
+        .order-qty-highlight {
+            color: #e0e0e0;
+            font-weight: 500;
         }
 
         .loading {
@@ -1379,35 +1567,54 @@
                     }
 
                     let className = 'change-entry';
-                    let details = '';
+                    let changeTypeBadge = '';
+                    let changeSummary = '';
+                    let itemMeta = '';
+
+                    // Get item metadata
+                    const itemTier = change.tier || '';
+                    const itemRarity = (change.rarity || change.rarityStr || '').toLowerCase();
+
+                    if (itemTier) {
+                        itemMeta += `<span class="item-tier-badge">Tier ${itemTier}</span>`;
+                    }
+                    if (itemRarity) {
+                        itemMeta += `<span class="item-rarity-badge ${itemRarity}">${escapeHtml(itemRarity.charAt(0).toUpperCase() + itemRarity.slice(1))}</span>`;
+                    }
 
                     if (change.type === 'new_item') {
                         className += ' new-item';
-                        details = `New item appeared with ${change.totalOrders} orders (${change.sellOrders} sell, ${change.buyOrders} buy)`;
+                        changeTypeBadge = '<span class="change-type-badge new">New Item</span>';
+                        changeSummary = `<span class="change-delta">${change.totalOrders} total orders (${change.sellOrders} sell, ${change.buyOrders} buy)</span>`;
                     } else if (change.type === 'order_change') {
                         if (change.delta.totalOrders > 0) {
                             className += ' order-increase';
-                            details = `Orders increased: `;
                         } else if (change.delta.totalOrders < 0) {
                             className += ' order-decrease';
-                            details = `Orders decreased: `;
                         } else {
                             className += ' order-change';
-                            details = `Orders changed: `;
                         }
 
-                        const parts = [];
+                        changeTypeBadge = '<span class="change-type-badge updated">Updated</span>';
+
+                        const deltaHtml = [];
                         if (change.delta.sellOrders !== 0) {
-                            parts.push(`Sell ${change.delta.sellOrders > 0 ? '+' : ''}${change.delta.sellOrders}`);
+                            const deltaClass = change.delta.sellOrders > 0 ? 'positive' : 'negative';
+                            deltaHtml.push(`<span class="change-delta ${deltaClass}">Sell: ${change.delta.sellOrders > 0 ? '+' : ''}${change.delta.sellOrders}</span>`);
                         }
                         if (change.delta.buyOrders !== 0) {
-                            parts.push(`Buy ${change.delta.buyOrders > 0 ? '+' : ''}${change.delta.buyOrders}`);
+                            const deltaClass = change.delta.buyOrders > 0 ? 'positive' : 'negative';
+                            deltaHtml.push(`<span class="change-delta ${deltaClass}">Buy: ${change.delta.buyOrders > 0 ? '+' : ''}${change.delta.buyOrders}</span>`);
                         }
-                        details += parts.join(', ');
-                        details += ` (Total: ${change.current.totalOrders})`;
+                        if (deltaHtml.length === 0) {
+                            deltaHtml.push(`<span class="change-delta">Order details changed</span>`);
+                        }
+                        deltaHtml.push(`<span class="change-delta" style="color: #808080;">Total: ${change.current.totalOrders}</span>`);
+                        changeSummary = deltaHtml.join('');
                     } else if (change.type === 'item_removed') {
                         className += ' item-removed';
-                        details = `All orders removed (previously had ${change.previous.totalOrders} orders)`;
+                        changeTypeBadge = '<span class="change-type-badge removed">Removed</span>';
+                        changeSummary = `<span class="change-delta negative">All ${change.previous.totalOrders} orders removed</span>`;
                     }
 
                     // Build detailed order information
@@ -1427,15 +1634,16 @@
                             }
                             hasDetailedDiff = true;
                             orderDetails += `
-                                <div class="individual-order">
-                                    <div class="change-order-info">
+                                <div class="individual-order ${orderType}-order">
+                                    <div class="order-primary-info">
                                         <span class="order-type-badge ${orderType}">${orderType.toUpperCase()}</span>
-                                        <span class="action-badge added">➕ Added</span>
+                                        <span class="action-badge added">Added</span>
                                         <span class="claim-badge">${escapeHtml(order.claimName || 'Unknown Claim')}</span>
                                         <span class="owner-badge">${escapeHtml(order.ownerName || 'Unknown')}</span>
                                     </div>
-                                    <div style="margin-top: 4px; font-size: 12px; color: #b0b0b0;">
-                                        Qty: ${Number(order.quantity).toLocaleString()} @ ${Number(order.priceThreshold).toLocaleString()} hex
+                                    <div class="order-price-info">
+                                        <span>Qty: <span class="order-qty-highlight">${Number(order.quantity).toLocaleString()}</span></span>
+                                        <span>Price: <span class="order-price-highlight">${Number(order.priceThreshold).toLocaleString()} hex</span></span>
                                     </div>
                                 </div>
                             `;
@@ -1453,15 +1661,16 @@
                             }
                             hasDetailedDiff = true;
                             orderDetails += `
-                                <div class="individual-order">
-                                    <div class="change-order-info">
+                                <div class="individual-order ${orderType}-order">
+                                    <div class="order-primary-info">
                                         <span class="order-type-badge ${orderType}">${orderType.toUpperCase()}</span>
-                                        <span class="action-badge removed">➖ Removed</span>
+                                        <span class="action-badge removed">Removed</span>
                                         <span class="claim-badge">${escapeHtml(order.claimName || 'Unknown Claim')}</span>
                                         <span class="owner-badge">${escapeHtml(order.ownerName || 'Unknown')}</span>
                                     </div>
-                                    <div style="margin-top: 4px; font-size: 12px; color: #b0b0b0;">
-                                        Qty: ${Number(order.quantity).toLocaleString()} @ ${Number(order.priceThreshold).toLocaleString()} hex
+                                    <div class="order-price-info">
+                                        <span>Qty: <span class="order-qty-highlight">${Number(order.quantity).toLocaleString()}</span></span>
+                                        <span>Price: <span class="order-price-highlight">${Number(order.priceThreshold).toLocaleString()} hex</span></span>
                                     </div>
                                 </div>
                             `;
@@ -1481,14 +1690,15 @@
                         currentSellOrders.forEach(order => {
                             if (!showSellOrders) return;
                             orderDetails += `
-                                <div class="individual-order">
-                                    <div class="change-order-info">
+                                <div class="individual-order sell-order">
+                                    <div class="order-primary-info">
                                         <span class="order-type-badge sell">SELL</span>
                                         <span class="claim-badge">${escapeHtml(order.claimName || 'Unknown Claim')}</span>
                                         <span class="owner-badge">${escapeHtml(order.ownerName || order.ownerUsername || 'Unknown')}</span>
                                     </div>
-                                    <div style="margin-top: 4px; font-size: 12px; color: #b0b0b0;">
-                                        Qty: ${Number(order.quantity).toLocaleString()} @ ${Number(order.priceThreshold).toLocaleString()} hex
+                                    <div class="order-price-info">
+                                        <span>Qty: <span class="order-qty-highlight">${Number(order.quantity).toLocaleString()}</span></span>
+                                        <span>Price: <span class="order-price-highlight">${Number(order.priceThreshold).toLocaleString()} hex</span></span>
                                     </div>
                                 </div>
                             `;
@@ -1497,14 +1707,15 @@
                         currentBuyOrders.forEach(order => {
                             if (!showBuyOrders) return;
                             orderDetails += `
-                                <div class="individual-order">
-                                    <div class="change-order-info">
+                                <div class="individual-order buy-order">
+                                    <div class="order-primary-info">
                                         <span class="order-type-badge buy">BUY</span>
                                         <span class="claim-badge">${escapeHtml(order.claimName || 'Unknown Claim')}</span>
                                         <span class="owner-badge">${escapeHtml(order.ownerName || order.ownerUsername || 'Unknown')}</span>
                                     </div>
-                                    <div style="margin-top: 4px; font-size: 12px; color: #b0b0b0;">
-                                        Qty: ${Number(order.quantity).toLocaleString()} @ ${Number(order.priceThreshold).toLocaleString()} hex
+                                    <div class="order-price-info">
+                                        <span>Qty: <span class="order-qty-highlight">${Number(order.quantity).toLocaleString()}</span></span>
+                                        <span>Price: <span class="order-price-highlight">${Number(order.priceThreshold).toLocaleString()} hex</span></span>
                                     </div>
                                 </div>
                             `;
@@ -1529,9 +1740,21 @@
 
                     entries.push(`
                         <div class="${className}">
-                            <div class="change-timestamp">${new Date(entry.timestamp).toLocaleString()}</div>
-                            <div class="change-item-name">${escapeHtml(change.itemName)}</div>
-                            <div class="change-details">${details}</div>
+                            <div class="change-header">
+                                <div class="change-main-info">
+                                    <div class="change-item-name">
+                                        <a href="https://bitjita.com/market/item/${change.itemId}" target="_blank" class="change-item-link">${escapeHtml(change.itemName)}</a>
+                                        <div class="change-item-meta">
+                                            ${itemMeta}
+                                        </div>
+                                    </div>
+                                    <div class="change-summary">
+                                        ${changeTypeBadge}
+                                        ${changeSummary}
+                                    </div>
+                                </div>
+                                <div class="change-timestamp">${new Date(entry.timestamp).toLocaleString()}</div>
+                            </div>
                             ${orderDetails ? `<div class="change-order-details">${orderDetails}</div>` : ''}
                         </div>
                     `);
