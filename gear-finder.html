@@ -1,0 +1,1951 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gear Finder - Bitcraft Market Helper</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a1a;
+            color: #e0e0e0;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #4a9eff;
+        }
+
+        .nav-links {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .nav-links a {
+            color: #4a9eff;
+            text-decoration: none;
+            margin: 0 15px;
+            padding: 8px 16px;
+            border-radius: 4px;
+            background-color: #2a2a2a;
+            display: inline-block;
+        }
+
+        .nav-links a:hover {
+            background-color: #3a3a3a;
+        }
+
+        .filters-section {
+            background-color: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+
+        .filters-row {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .filter-group {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #b0b0b0;
+            font-size: 14px;
+        }
+
+        select {
+            width: 100%;
+            padding: 10px;
+            background-color: #3a3a3a;
+            border: 1px solid #4a4a4a;
+            border-radius: 4px;
+            color: #e0e0e0;
+            font-size: 14px;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: #4a9eff;
+        }
+
+        select[multiple] {
+            min-height: 120px;
+            padding: 5px;
+        }
+
+        select[multiple] option {
+            padding: 8px 10px;
+            border-radius: 3px;
+            margin-bottom: 2px;
+        }
+
+        select[multiple] option:checked {
+            background: linear-gradient(#4a9eff, #4a9eff);
+            color: #1a1a1a;
+            font-weight: 600;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #b0b0b0;
+        }
+
+        input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .refresh-button {
+            padding: 10px 20px;
+            background-color: #4a9eff;
+            color: #1a1a1a;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .refresh-button:hover {
+            background-color: #6bb3ff;
+        }
+
+        .refresh-button:disabled {
+            background-color: #4a4a4a;
+            color: #6b7280;
+            cursor: not-allowed;
+        }
+
+        .loading-overlay {
+            display: none;
+            text-align: center;
+            padding: 40px;
+            background-color: #2a2a2a;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .loading-overlay.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid #3a3a3a;
+            border-top: 4px solid #4a9eff;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            color: #4a9eff;
+            font-size: 16px;
+        }
+
+        .loading-details {
+            color: #b0b0b0;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+
+        .results-section {
+            background-color: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .results-section.active {
+            display: block;
+        }
+
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .results-count {
+            color: #4a9eff;
+            font-size: 18px;
+        }
+
+        .search-box {
+            padding: 8px 12px;
+            background-color: #3a3a3a;
+            border: 1px solid #4a4a4a;
+            border-radius: 4px;
+            color: #e0e0e0;
+            font-size: 14px;
+            width: 300px;
+        }
+
+        .search-box:focus {
+            outline: none;
+            border-color: #4a9eff;
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 800px;
+        }
+
+        th {
+            background-color: #3a3a3a;
+            padding: 12px 8px;
+            text-align: left;
+            color: #4a9eff;
+            font-weight: 600;
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+        }
+
+        th:hover {
+            background-color: #4a4a4a;
+        }
+
+        th.sortable::after {
+            content: ' ⇅';
+            opacity: 0.5;
+        }
+
+        th.sort-asc::after {
+            content: ' ↑';
+            opacity: 1;
+        }
+
+        th.sort-desc::after {
+            content: ' ↓';
+            opacity: 1;
+        }
+
+        td {
+            padding: 12px 8px;
+            border-bottom: 1px solid #3a3a3a;
+        }
+
+        tr:hover {
+            background-color: #2a2a2a;
+        }
+
+        .price-cell {
+            color: #4ade80;
+            font-weight: 500;
+        }
+
+        .price-with-claim {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .claim-name {
+            color: #9ca3af;
+            font-size: 11px;
+            font-style: italic;
+        }
+
+        .price-na {
+            color: #6b7280;
+            font-style: italic;
+        }
+
+        .item-link {
+            color: #4a9eff;
+            text-decoration: none;
+        }
+
+        .item-link:hover {
+            text-decoration: underline;
+            color: #6bb3ff;
+        }
+
+        .no-results {
+            text-align: center;
+            color: #b0b0b0;
+            padding: 40px;
+            font-style: italic;
+        }
+
+        .info-message {
+            text-align: center;
+            color: #b0b0b0;
+            padding: 40px;
+            background-color: #2a2a2a;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+
+        .error {
+            background-color: #4a2a2a;
+            color: #f87171;
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 3px solid #f87171;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .error.active {
+            display: block;
+        }
+
+        .attribution-footer {
+            background-color: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 40px;
+            text-align: center;
+            border-top: 2px solid #4a9eff;
+        }
+
+        .attribution-footer p {
+            color: #b0b0b0;
+            font-size: 14px;
+            margin: 0;
+        }
+
+        .attribution-footer a {
+            color: #4a9eff;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .attribution-footer a:hover {
+            color: #6bb3ff;
+            text-decoration: underline;
+        }
+
+        /* Tooltip Styles */
+        .help-icon {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            line-height: 16px;
+            text-align: center;
+            background-color: #4a9eff;
+            color: #1a1a1a;
+            border-radius: 50%;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: help;
+            margin-left: 6px;
+            position: relative;
+            vertical-align: middle;
+        }
+
+        .help-icon:hover {
+            background-color: #6bb3ff;
+        }
+
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 280px;
+            background-color: #2a2a2a;
+            color: #e0e0e0;
+            text-align: left;
+            border-radius: 6px;
+            padding: 12px;
+            position: absolute;
+            z-index: 2000;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -140px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            border: 1px solid #4a9eff;
+            font-size: 13px;
+            line-height: 1.4;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        .tooltip .tooltiptext::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: #4a9eff transparent transparent transparent;
+        }
+
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        .help-link {
+            display: inline-block;
+            padding: 8px 16px;
+            background-color: #2a2a2a;
+            color: #4a9eff;
+            text-decoration: none;
+            border-radius: 4px;
+            border: 1px solid #4a9eff;
+            transition: background-color 0.2s;
+        }
+
+        .help-link:hover {
+            background-color: #3a3a3a;
+        }
+
+        /* Saved Searches Styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 3000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background-color: #2a2a2a;
+            padding: 30px;
+            border-radius: 8px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            border: 2px solid #4a9eff;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #4a4a4a;
+        }
+
+        .modal-header h2 {
+            color: #4a9eff;
+            margin: 0;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: #e0e0e0;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+
+        .modal-close:hover {
+            background-color: #4a4a4a;
+        }
+
+        .saved-search-item {
+            background-color: #3a3a3a;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            border-left: 3px solid #4a9eff;
+        }
+
+        .saved-search-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .saved-search-name {
+            color: #e0e0e0;
+            font-weight: 600;
+            font-size: 16px;
+            flex: 1;
+        }
+
+        .saved-search-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .saved-search-btn {
+            padding: 6px 12px;
+            background-color: #4a4a4a;
+            color: #e0e0e0;
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .saved-search-btn:hover {
+            background-color: #5a5a5a;
+        }
+
+        .saved-search-btn.load {
+            background-color: #4a9eff;
+            color: #1a1a1a;
+        }
+
+        .saved-search-btn.load:hover {
+            background-color: #6bb3ff;
+        }
+
+        .saved-search-btn.delete {
+            background-color: #f87171;
+            color: #1a1a1a;
+        }
+
+        .saved-search-btn.delete:hover {
+            background-color: #fb923c;
+        }
+
+        .saved-search-details {
+            color: #b0b0b0;
+            font-size: 13px;
+        }
+
+        .saved-search-type {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            background-color: #4a4a4a;
+            color: #4a9eff;
+            font-size: 11px;
+            text-transform: uppercase;
+            margin-right: 8px;
+        }
+
+        .modal-footer {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 2px solid #4a4a4a;
+            display: flex;
+            gap: 10px;
+        }
+
+        .modal-button {
+            padding: 10px 20px;
+            background-color: #4a9eff;
+            color: #1a1a1a;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .modal-button:hover {
+            background-color: #6bb3ff;
+        }
+
+        .modal-button.secondary {
+            background-color: #4a4a4a;
+            color: #e0e0e0;
+        }
+
+        .modal-button.secondary:hover {
+            background-color: #5a5a5a;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #b0b0b0;
+            padding: 30px;
+            font-style: italic;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background-color: #2a2a2a;
+            color: #e0e0e0;
+            padding: 15px 20px;
+            border-radius: 8px;
+            border: 2px solid #4a9eff;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            z-index: 4000;
+            display: none;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .toast.success {
+            border-color: #4ade80;
+        }
+
+        .toast.error {
+            border-color: #f87171;
+        }
+
+        .toast.warning {
+            border-color: #fb923c;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .filters-row {
+                flex-direction: column;
+            }
+
+            .results-header {
+                flex-direction: column;
+                gap: 15px;
+                align-items: flex-start;
+            }
+
+            .search-box {
+                width: 100%;
+            }
+
+            .tooltip .tooltiptext {
+                width: 200px;
+                margin-left: -100px;
+            }
+
+            .modal-content {
+                padding: 20px;
+            }
+
+            .toast {
+                right: 15px;
+                left: 15px;
+                bottom: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⚔️ Gear Finder - Bitcraft Market Helper
+            <span class="tooltip">
+                <span class="help-icon">?</span>
+                <span class="tooltiptext">Browse and compare gear items by category, tier, and rarity. View prices across all rarity levels in a convenient table format.</span>
+            </span>
+        </h1>
+
+        <div class="nav-links">
+            <a href="index.html">← Back to Market Search</a>
+            <a href="market-monitor.html">📊 Market Monitor</a>
+            <a href="help.html" class="help-link">📚 Help & FAQ</a>
+        </div>
+
+        <div class="filters-section">
+            <div style="margin-bottom: 15px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <div style="flex: 1; min-width: 250px;">
+                    <label for="savedSearchSelect">Saved Searches
+                        <span class="tooltip">
+                            <span class="help-icon">?</span>
+                            <span class="tooltiptext">Load a previously saved search. Save your current filters using the button below to quickly access them later.</span>
+                        </span>
+                    </label>
+                    <select id="savedSearchSelect">
+                        <option value="">-- Load Saved Search --</option>
+                    </select>
+                </div>
+                <div style="display: flex; gap: 10px; align-items: flex-end;">
+                    <button id="saveSearchButton" class="refresh-button" style="background-color: #4ade80;">💾 Save Filters</button>
+                    <button id="manageSearchesButton" class="refresh-button" style="background-color: #a78bfa;">⚙️ Manage</button>
+                    <span id="savedIndicator" style="display: none; color: #4ade80; font-size: 14px;">⭐ Saved</span>
+                </div>
+            </div>
+            <div class="filters-row">
+                <div class="filter-group">
+                    <label for="categoryFilter">Category (Ctrl+Click for multiple)
+                        <span class="tooltip">
+                            <span class="help-icon">?</span>
+                            <span class="tooltiptext">Select one or more gear categories to view. Hold Ctrl (or Cmd on Mac) and click to select multiple categories.</span>
+                        </span>
+                    </label>
+                    <select id="categoryFilter" multiple>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="tierFilter">Tier (Ctrl+Click for multiple)
+                        <span class="tooltip">
+                            <span class="help-icon">?</span>
+                            <span class="tooltiptext">Filter by item tier levels. Hold Ctrl (or Cmd on Mac) and click to select multiple tiers.</span>
+                        </span>
+                    </label>
+                    <select id="tierFilter" multiple>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="rarityFilter">Rarity (Ctrl+Click for multiple)
+                        <span class="tooltip">
+                            <span class="help-icon">?</span>
+                            <span class="tooltiptext">Filter by item rarity (Common, Uncommon, Rare, Epic, Legendary). Hold Ctrl (or Cmd on Mac) and click to select multiple rarities.</span>
+                        </span>
+                    </label>
+                    <select id="rarityFilter" multiple>
+                    </select>
+                </div>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div class="checkbox-group">
+                    <input type="checkbox" id="allRegions">
+                    <label for="allRegions">Include all regions (default: Solvenar - Region 4)
+                        <span class="tooltip">
+                            <span class="help-icon">?</span>
+                            <span class="tooltiptext">By default, only shows market data from Solvenar (Region 4). Check this box to include market data from all regions.</span>
+                        </span>
+                    </label>
+                </div>
+                <button id="refreshButton" class="refresh-button" disabled>🔄 Refresh Data
+                    <span class="tooltip">
+                        <span class="help-icon" style="background-color: #1a1a1a; color: #4a9eff;">?</span>
+                        <span class="tooltiptext">Reload market data with current filter settings to get the latest prices. Button activates after selecting filters.</span>
+                    </span>
+                </button>
+            </div>
+        </div>
+
+        <div class="error" id="errorMessage"></div>
+
+        <div class="loading-overlay" id="loadingOverlay">
+            <div class="spinner"></div>
+            <div class="loading-text">Fetching market data...</div>
+            <div class="loading-details" id="loadingDetails">Preparing request...</div>
+        </div>
+
+        <div class="info-message" id="infoMessage">
+            Select category, tier, or rarity filters above to view market data.
+        </div>
+
+        <div class="results-section" id="resultsSection">
+            <div class="results-header">
+                <div class="results-count" id="resultsCount">0 items found</div>
+                <input type="text" id="searchBox" class="search-box" placeholder="Filter results...">
+                <span class="tooltip">
+                    <span class="help-icon">?</span>
+                    <span class="tooltiptext">Type to filter the displayed results by item name or category. This only filters what's currently shown - it doesn't fetch new data.</span>
+                </span>
+            </div>
+            <div class="table-container">
+                <table id="resultsTable">
+                    <thead>
+                        <tr>
+                            <th class="sortable" data-column="itemName">Item Name
+                                <span class="tooltip">
+                                    <span class="help-icon" style="width: 14px; height: 14px; font-size: 10px;">?</span>
+                                    <span class="tooltiptext">Click to sort by item name. Click links to view items on bitjita.com.</span>
+                                </span>
+                            </th>
+                            <th class="sortable" data-column="tier">Tier
+                                <span class="tooltip">
+                                    <span class="help-icon" style="width: 14px; height: 14px; font-size: 10px;">?</span>
+                                    <span class="tooltiptext">Click to sort by tier level. Higher tiers are generally more powerful.</span>
+                                </span>
+                            </th>
+                            <th class="sortable" data-column="common">Common
+                                <span class="tooltip">
+                                    <span class="help-icon" style="width: 14px; height: 14px; font-size: 10px;">?</span>
+                                    <span class="tooltiptext">Lowest sell price for Common rarity of this item. Click column to sort by price.</span>
+                                </span>
+                            </th>
+                            <th class="sortable" data-column="uncommon">Uncommon
+                                <span class="tooltip">
+                                    <span class="help-icon" style="width: 14px; height: 14px; font-size: 10px;">?</span>
+                                    <span class="tooltiptext">Lowest sell price for Uncommon rarity of this item. Click column to sort by price.</span>
+                                </span>
+                            </th>
+                            <th class="sortable" data-column="rare">Rare
+                                <span class="tooltip">
+                                    <span class="help-icon" style="width: 14px; height: 14px; font-size: 10px;">?</span>
+                                    <span class="tooltiptext">Lowest sell price for Rare rarity of this item. Click column to sort by price.</span>
+                                </span>
+                            </th>
+                            <th class="sortable" data-column="epic">Epic
+                                <span class="tooltip">
+                                    <span class="help-icon" style="width: 14px; height: 14px; font-size: 10px;">?</span>
+                                    <span class="tooltiptext">Lowest sell price for Epic rarity of this item. Click column to sort by price.</span>
+                                </span>
+                            </th>
+                            <th class="sortable" data-column="legendary">Legendary
+                                <span class="tooltip">
+                                    <span class="help-icon" style="width: 14px; height: 14px; font-size: 10px;">?</span>
+                                    <span class="tooltiptext">Lowest sell price for Legendary rarity of this item. Click column to sort by price.</span>
+                                </span>
+                            </th>
+                            <th class="sortable" data-column="category">Category
+                                <span class="tooltip">
+                                    <span class="help-icon" style="width: 14px; height: 14px; font-size: 10px;">?</span>
+                                    <span class="tooltiptext">Item category (e.g., Miner Tool, Metal Armor). Click to sort.</span>
+                                </span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultsBody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="attribution-footer">
+            <p>Market data graciously provided by <a href="https://bitjita.com" target="_blank">bitjita.com</a> 💙</p>
+        </div>
+    </div>
+
+    <!-- Manage Saved Searches Modal -->
+    <div class="modal-overlay" id="manageSearchesModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📚 Manage Saved Searches</h2>
+                <button class="modal-close" onclick="closeManageModal()">&times;</button>
+            </div>
+            <div id="savedSearchesList"></div>
+            <div class="modal-footer">
+                <button class="modal-button" onclick="exportSearches()">📥 Export</button>
+                <button class="modal-button secondary" onclick="importSearches()">📤 Import</button>
+                <button class="modal-button secondary" onclick="clearAllSearches()">🗑️ Clear All</button>
+            </div>
+            <input type="file" id="importFileInput" style="display: none;" accept=".json">
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="toast"></div>
+
+    <script src="savedSearches.js"></script>
+    <script>
+        // ==========================================
+        // API CONFIGURATION
+        // ==========================================
+        // For LOCAL development: Leave this empty ('')
+        // For GITHUB PAGES: Set this to your Cloudflare Worker URL
+        // Example: 'https://bitcraft-market-proxy.YOUR_SUBDOMAIN.workers.dev'
+        const API_BASE_URL = 'https://bitcraft-market-proxy.jbaird-cb6.workers.dev';
+
+        // ==========================================
+        // Don't modify below this line
+        // ==========================================
+        let allItems = [];
+        let currentResults = [];
+        let currentSort = { column: 'category', direction: 'asc' };
+        let currentAbortController = null;
+
+        const CATEGORIES = [
+            'Blacksmith Tool',
+            'Carpenter Tool',
+            'Cloth Clothing',
+            'Farmer Tool',
+            'Fisher Tool',
+            'Forager Tool',
+            'Forester Tool',
+            'Hunter Tool',
+            'Leather Clothing',
+            'Leatherworker Tool',
+            'Mason Tool',
+            'Metal Armor',
+            'Miner Tool',
+            'Scholar Tool',
+            'Tailor Tool'
+        ];
+
+        const RARITIES = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary'];
+
+        // Load items.json on startup
+        async function loadItems() {
+            try {
+                const response = await fetch('items.json');
+                const data = await response.json();
+                allItems = data.items || [];
+
+                populateDropdowns();
+                setupEventListeners();
+
+                console.log(`Loaded ${allItems.length} items`);
+            } catch (error) {
+                showError('Failed to load items.json: ' + error.message);
+            }
+        }
+
+        // Populate dropdowns with unique values
+        function populateDropdowns() {
+            // Populate categories
+            const categoryFilter = document.getElementById('categoryFilter');
+            CATEGORIES.forEach(cat => {
+                const option = document.createElement('option');
+                option.value = cat;
+                option.textContent = cat;
+                categoryFilter.appendChild(option);
+            });
+
+            // Populate tiers
+            const tierSet = new Set();
+            allItems.forEach(item => {
+                if (item.compendiumEntry === true && CATEGORIES.includes(item.tag)) {
+                    tierSet.add(item.tier);
+                }
+            });
+            const tiers = Array.from(tierSet).sort((a, b) => a - b);
+
+            const tierFilter = document.getElementById('tierFilter');
+            tiers.forEach(tier => {
+                const option = document.createElement('option');
+                option.value = tier;
+                option.textContent = `Tier ${tier}`;
+                tierFilter.appendChild(option);
+            });
+
+            // Populate rarities
+            const rarityFilter = document.getElementById('rarityFilter');
+            RARITIES.forEach(rarity => {
+                const option = document.createElement('option');
+                option.value = rarity;
+                option.textContent = rarity;
+                rarityFilter.appendChild(option);
+            });
+        }
+
+        // Setup event listeners
+        function setupEventListeners() {
+            document.getElementById('categoryFilter').addEventListener('change', handleFilterChange);
+            document.getElementById('tierFilter').addEventListener('change', handleFilterChange);
+            document.getElementById('rarityFilter').addEventListener('change', handleFilterChange);
+            document.getElementById('allRegions').addEventListener('change', handleFilterChange);
+            document.getElementById('searchBox').addEventListener('input', handleSearch);
+            document.getElementById('refreshButton').addEventListener('click', handleRefresh);
+
+            // Setup table sorting
+            document.querySelectorAll('th.sortable').forEach(th => {
+                th.addEventListener('click', () => handleSort(th.dataset.column));
+            });
+        }
+
+        // Handle refresh button click
+        function handleRefresh() {
+            // Re-trigger the filter change to fetch fresh data
+            handleFilterChange();
+        }
+
+        // Handle filter changes
+        async function handleFilterChange() {
+            // Cancel any ongoing request
+            if (currentAbortController) {
+                currentAbortController.abort();
+                currentAbortController = null;
+            }
+
+            const categorySelect = document.getElementById('categoryFilter');
+            const tierSelect = document.getElementById('tierFilter');
+            const raritySelect = document.getElementById('rarityFilter');
+
+            // Get selected values as arrays
+            const selectedCategories = Array.from(categorySelect.selectedOptions).map(opt => opt.value);
+            const selectedTiers = Array.from(tierSelect.selectedOptions).map(opt => parseInt(opt.value));
+            const selectedRarities = Array.from(raritySelect.selectedOptions).map(opt => opt.value);
+
+            // If no filters are selected, show info message and hide results
+            if (selectedCategories.length === 0 && selectedTiers.length === 0 && selectedRarities.length === 0) {
+                document.getElementById('infoMessage').style.display = 'block';
+                document.getElementById('resultsSection').classList.remove('active');
+                showLoading(false);
+                hideError();
+                return;
+            }
+
+            document.getElementById('infoMessage').style.display = 'none';
+
+            // Filter items based on selections
+            const itemsToFetch = filterItems(selectedCategories, selectedTiers, selectedRarities);
+
+            if (itemsToFetch.length === 0) {
+                showError('No items match the selected filters');
+                return;
+            }
+
+            // Fetch market data
+            await fetchMarketData(itemsToFetch);
+        }
+
+        // Filter items based on category, tier, and rarity
+        function filterItems(selectedCategories, selectedTiers, selectedRarities) {
+            let filtered = allItems.filter(item => item.compendiumEntry === true);
+
+            // Filter by category (multiple selection)
+            if (selectedCategories.length > 0) {
+                filtered = filtered.filter(item => selectedCategories.includes(item.tag));
+            } else {
+                // If no category selected, only include items from the specified categories
+                filtered = filtered.filter(item => CATEGORIES.includes(item.tag));
+            }
+
+            // Filter by tier (multiple selection)
+            if (selectedTiers.length > 0) {
+                filtered = filtered.filter(item => selectedTiers.includes(item.tier));
+            }
+
+            // Filter by rarity (multiple selection)
+            if (selectedRarities.length > 0) {
+                filtered = filtered.filter(item => selectedRarities.includes(item.rarityStr));
+            }
+
+            return filtered;
+        }
+
+        // Fetch market data - use bulk endpoint for all regions, individual calls for specific region
+        async function fetchMarketData(items) {
+            // Create new abort controller for this request
+            currentAbortController = new AbortController();
+            const signal = currentAbortController.signal;
+
+            showLoading(true);
+            hideError();
+
+            const allRegionsChecked = document.getElementById('allRegions').checked;
+            const targetRegionId = 4;
+
+            try {
+                const total = items.length;
+                let gridData;
+
+                if (allRegionsChecked) {
+                    // Use bulk endpoint for all regions (batched in groups of 100)
+                    const BULK_BATCH_SIZE = 100;
+                    const itemIds = items.map(item => parseInt(item.id));
+                    const mergedBulkData = { data: { items: {} } };
+
+                    // Split into batches of 100 (API limit)
+                    for (let i = 0; i < itemIds.length; i += BULK_BATCH_SIZE) {
+                        if (signal.aborted) {
+                            console.log('Request cancelled by user');
+                            return;
+                        }
+
+                        const batchIds = itemIds.slice(i, i + BULK_BATCH_SIZE);
+                        const batchNum = Math.floor(i / BULK_BATCH_SIZE) + 1;
+                        const totalBatches = Math.ceil(itemIds.length / BULK_BATCH_SIZE);
+
+                        updateLoadingDetails(`Fetching batch ${batchNum}/${totalBatches} (${batchIds.length} items)...`);
+
+                        const bulkApiUrl = `${API_BASE_URL}/api/market/prices/bulk`;
+                        const response = await fetch(bulkApiUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                itemIds: batchIds,
+                                cargoIds: []
+                            }),
+                            signal: signal
+                        });
+
+                        if (signal.aborted) {
+                            console.log('Request cancelled by user');
+                            return;
+                        }
+
+                        if (!response.ok) {
+                            // Capture full error details
+                            let responseBody = '';
+                            try {
+                                const contentType = response.headers.get('content-type');
+                                if (contentType && contentType.includes('application/json')) {
+                                    responseBody = JSON.stringify(await response.json(), null, 2);
+                                } else {
+                                    responseBody = await response.text();
+                                }
+                            } catch (e) {
+                                responseBody = 'Could not read response body';
+                            }
+
+                            showLoading(false);
+                            showError('Failed to fetch market data (bulk endpoint)', {
+                                url: bulkApiUrl,
+                                method: 'POST',
+                                status: response.status,
+                                statusText: response.statusText,
+                                responseBody: responseBody
+                            });
+                            currentAbortController = null;
+                            return;
+                        }
+
+                        const batchData = await response.json();
+
+                        // Merge batch results into combined data
+                        if (batchData && batchData.data && batchData.data.items) {
+                            Object.assign(mergedBulkData.data.items, batchData.data.items);
+                        }
+                    }
+
+                    // Process merged bulk data
+                    gridData = processBulkDataToGrid(items, mergedBulkData);
+                } else {
+                    // Use individual calls for regional filtering
+                    updateLoadingDetails(`Fetching ${total} items for specific region...`);
+
+                    const results = [];
+                    for (const item of items) {
+                        if (signal.aborted) {
+                            console.log('Request cancelled by user');
+                            return;
+                        }
+
+                        try {
+                            const apiUrl = `${API_BASE_URL}/api/market/item/${item.id}`;
+                            const response = await fetch(apiUrl, { signal });
+                            if (response.ok) {
+                                const data = await response.json();
+                                results.push({ item, data });
+                            } else {
+                                // Capture full error details
+                                let responseBody = '';
+                                try {
+                                    const contentType = response.headers.get('content-type');
+                                    if (contentType && contentType.includes('application/json')) {
+                                        responseBody = JSON.stringify(await response.json(), null, 2);
+                                    } else {
+                                        responseBody = await response.text();
+                                    }
+                                } catch (e) {
+                                    responseBody = 'Could not read response body';
+                                }
+
+                                console.error(`Failed to fetch item ${item.id}:`, response.status);
+                                showLoading(false);
+                                showError('Failed to fetch market data (individual item)', {
+                                    url: apiUrl,
+                                    method: 'GET',
+                                    status: response.status,
+                                    statusText: response.statusText,
+                                    responseBody: responseBody
+                                });
+                                currentAbortController = null;
+                                return;
+                            }
+                        } catch (error) {
+                            if (error.name !== 'AbortError') {
+                                console.error(`Error fetching item ${item.id}:`, error);
+                            }
+                            results.push({ item, data: null });
+                        }
+                    }
+
+                    // Process individual order data with regional filtering
+                    gridData = processResultsToGrid(results, allRegionsChecked, targetRegionId);
+                }
+
+                // Sort by default (category, then itemName, then tier)
+                currentSort = { column: 'category', direction: 'asc' };
+                sortResults(gridData);
+
+                currentResults = gridData;
+                displayResults(gridData);
+
+                showLoading(false);
+                currentAbortController = null;
+
+                // Enable refresh button
+                document.getElementById('refreshButton').disabled = false;
+            } catch (error) {
+                // Don't show error if request was aborted
+                if (error.name === 'AbortError') {
+                    console.log('Request was cancelled');
+                    return;
+                }
+                showLoading(false);
+                showError('Failed to fetch market data', {
+                    error: error.message,
+                    method: allRegionsChecked ? 'POST (bulk)' : 'GET (individual)'
+                });
+                currentAbortController = null;
+            }
+        }
+
+        // Process bulk API data into grid format
+        function processBulkDataToGrid(items, bulkData) {
+            const grouped = {};
+
+            if (!bulkData || !bulkData.data || !bulkData.data.items) {
+                return [];
+            }
+
+            items.forEach(item => {
+                const priceData = bulkData.data.items[item.id];
+                if (!priceData || priceData.lowestSellPrice === null) return;
+
+                const key = `${item.name}|${item.tier}|${item.tag}`;
+
+                if (!grouped[key]) {
+                    grouped[key] = {
+                        itemName: item.name,
+                        itemId: item.id,
+                        tier: item.tier,
+                        category: item.tag,
+                        common: null,
+                        commonItemId: null,
+                        uncommon: null,
+                        uncommonItemId: null,
+                        rare: null,
+                        rareItemId: null,
+                        epic: null,
+                        epicItemId: null,
+                        legendary: null,
+                        legendaryItemId: null
+                    };
+                }
+
+                const rarityKey = item.rarityStr.toLowerCase();
+                const rarityIdKey = rarityKey + 'ItemId';
+                const lowestPrice = priceData.lowestSellPrice;
+
+                // Update the price if it's null or higher than the current lowest
+                if (grouped[key][rarityKey] === null || lowestPrice < grouped[key][rarityKey]) {
+                    grouped[key][rarityKey] = lowestPrice;
+                    grouped[key][rarityIdKey] = item.id;
+                }
+            });
+
+            return Object.values(grouped);
+        }
+
+        // Process API results into grid format
+        function processResultsToGrid(results, includeAllRegions, targetRegionId) {
+            // Group by (itemName, tier, category)
+            const grouped = {};
+
+            results.forEach(({ item, data }) => {
+                if (!data || !data.sellOrders) return;
+
+                const key = `${item.name}|${item.tier}|${item.tag}`;
+
+                if (!grouped[key]) {
+                    grouped[key] = {
+                        itemName: item.name,
+                        itemId: item.id,
+                        tier: item.tier,
+                        category: item.tag,
+                        common: null,
+                        commonItemId: null,
+                        commonClaim: null,
+                        uncommon: null,
+                        uncommonItemId: null,
+                        uncommonClaim: null,
+                        rare: null,
+                        rareItemId: null,
+                        rareClaim: null,
+                        epic: null,
+                        epicItemId: null,
+                        epicClaim: null,
+                        legendary: null,
+                        legendaryItemId: null,
+                        legendaryClaim: null
+                    };
+                }
+
+                // Filter sell orders by region if needed
+                let sellOrders = data.sellOrders;
+                if (!includeAllRegions) {
+                    sellOrders = sellOrders.filter(order => order.regionId === targetRegionId);
+                }
+
+                // Find lowest price and its claim name
+                if (sellOrders.length > 0) {
+                    const lowestOrder = sellOrders.reduce((min, order) =>
+                        parseFloat(order.priceThreshold) < parseFloat(min.priceThreshold) ? order : min
+                    );
+                    const lowestPrice = parseFloat(lowestOrder.priceThreshold);
+                    const rarityKey = item.rarityStr.toLowerCase();
+                    const rarityIdKey = rarityKey + 'ItemId';
+                    const rarityClaimKey = rarityKey + 'Claim';
+
+                    // Update the price if it's null or higher than the current lowest
+                    if (grouped[key][rarityKey] === null || lowestPrice < grouped[key][rarityKey]) {
+                        grouped[key][rarityKey] = lowestPrice;
+                        grouped[key][rarityIdKey] = item.id;
+                        grouped[key][rarityClaimKey] = lowestOrder.claimName;
+                    }
+                }
+            });
+
+            return Object.values(grouped);
+        }
+
+        // Display results in table
+        function displayResults(data) {
+            const resultsSection = document.getElementById('resultsSection');
+            const resultsBody = document.getElementById('resultsBody');
+            const resultsCount = document.getElementById('resultsCount');
+
+            resultsSection.classList.add('active');
+            resultsCount.textContent = `${data.length} item${data.length !== 1 ? 's' : ''} found`;
+
+            if (data.length === 0) {
+                resultsBody.innerHTML = '<tr><td colspan="8" class="no-results">No results found</td></tr>';
+                return;
+            }
+
+            resultsBody.innerHTML = data.map(row => `
+                <tr>
+                    <td><a href="https://bitjita.com/market/item/${row.itemId}" target="_blank" class="item-link">${row.itemName}</a></td>
+                    <td>${row.tier}</td>
+                    <td class="${row.common !== null ? 'price-cell' : 'price-na'}">
+                        ${row.common !== null && row.commonItemId
+                            ? `<div class="price-with-claim">
+                                 <a href="https://bitjita.com/market/item/${row.commonItemId}" target="_blank" class="item-link">${row.common} hex</a>
+                                 ${row.commonClaim ? `<div class="claim-name">${row.commonClaim}</div>` : ''}
+                               </div>`
+                            : (row.common !== null ? row.common + ' hex' : 'N/A')}
+                    </td>
+                    <td class="${row.uncommon !== null ? 'price-cell' : 'price-na'}">
+                        ${row.uncommon !== null && row.uncommonItemId
+                            ? `<div class="price-with-claim">
+                                 <a href="https://bitjita.com/market/item/${row.uncommonItemId}" target="_blank" class="item-link">${row.uncommon} hex</a>
+                                 ${row.uncommonClaim ? `<div class="claim-name">${row.uncommonClaim}</div>` : ''}
+                               </div>`
+                            : (row.uncommon !== null ? row.uncommon + ' hex' : 'N/A')}
+                    </td>
+                    <td class="${row.rare !== null ? 'price-cell' : 'price-na'}">
+                        ${row.rare !== null && row.rareItemId
+                            ? `<div class="price-with-claim">
+                                 <a href="https://bitjita.com/market/item/${row.rareItemId}" target="_blank" class="item-link">${row.rare} hex</a>
+                                 ${row.rareClaim ? `<div class="claim-name">${row.rareClaim}</div>` : ''}
+                               </div>`
+                            : (row.rare !== null ? row.rare + ' hex' : 'N/A')}
+                    </td>
+                    <td class="${row.epic !== null ? 'price-cell' : 'price-na'}">
+                        ${row.epic !== null && row.epicItemId
+                            ? `<div class="price-with-claim">
+                                 <a href="https://bitjita.com/market/item/${row.epicItemId}" target="_blank" class="item-link">${row.epic} hex</a>
+                                 ${row.epicClaim ? `<div class="claim-name">${row.epicClaim}</div>` : ''}
+                               </div>`
+                            : (row.epic !== null ? row.epic + ' hex' : 'N/A')}
+                    </td>
+                    <td class="${row.legendary !== null ? 'price-cell' : 'price-na'}">
+                        ${row.legendary !== null && row.legendaryItemId
+                            ? `<div class="price-with-claim">
+                                 <a href="https://bitjita.com/market/item/${row.legendaryItemId}" target="_blank" class="item-link">${row.legendary} hex</a>
+                                 ${row.legendaryClaim ? `<div class="claim-name">${row.legendaryClaim}</div>` : ''}
+                               </div>`
+                            : (row.legendary !== null ? row.legendary + ' hex' : 'N/A')}
+                    </td>
+                    <td>${row.category}</td>
+                </tr>
+            `).join('');
+        }
+
+        // Handle search/filter
+        function handleSearch(e) {
+            const searchTerm = e.target.value.toLowerCase().trim();
+
+            if (searchTerm === '') {
+                displayResults(currentResults);
+                return;
+            }
+
+            const filtered = currentResults.filter(row =>
+                row.itemName.toLowerCase().includes(searchTerm) ||
+                row.category.toLowerCase().includes(searchTerm)
+            );
+
+            displayResults(filtered);
+        }
+
+        // Handle column sorting
+        function handleSort(column) {
+            // Toggle direction if clicking same column
+            if (currentSort.column === column) {
+                currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort.column = column;
+                currentSort.direction = 'asc';
+            }
+
+            sortResults(currentResults);
+            displayResults(currentResults);
+
+            // Update column headers
+            document.querySelectorAll('th.sortable').forEach(th => {
+                th.classList.remove('sort-asc', 'sort-desc');
+                if (th.dataset.column === column) {
+                    th.classList.add(currentSort.direction === 'asc' ? 'sort-asc' : 'sort-desc');
+                }
+            });
+        }
+
+        // Sort results array
+        function sortResults(data) {
+            const { column, direction } = currentSort;
+            const multiplier = direction === 'asc' ? 1 : -1;
+
+            data.sort((a, b) => {
+                let aVal = a[column];
+                let bVal = b[column];
+
+                // Handle null values for price columns
+                if (aVal === null) aVal = Infinity;
+                if (bVal === null) bVal = Infinity;
+
+                if (typeof aVal === 'string') {
+                    return multiplier * aVal.localeCompare(bVal);
+                } else {
+                    return multiplier * (aVal - bVal);
+                }
+            });
+        }
+
+        // Show/hide loading overlay
+        function showLoading(show) {
+            const overlay = document.getElementById('loadingOverlay');
+            if (show) {
+                overlay.classList.add('active');
+            } else {
+                overlay.classList.remove('active');
+            }
+        }
+
+        // Update loading details text
+        function updateLoadingDetails(text) {
+            document.getElementById('loadingDetails').textContent = text;
+        }
+
+        // Show error message with detailed information
+        function showError(message, details = null) {
+            const errorElement = document.getElementById('errorMessage');
+
+            // Create detailed error message
+            let errorHtml = `<strong>Error:</strong> ${message}`;
+
+            if (details) {
+                errorHtml += '<br><br><strong>Details:</strong><br>';
+
+                if (details.url) {
+                    errorHtml += `<strong>URL:</strong> ${details.url}<br>`;
+                }
+
+                if (details.status) {
+                    errorHtml += `<strong>Status:</strong> ${details.status} ${details.statusText || ''}<br>`;
+                }
+
+                if (details.method) {
+                    errorHtml += `<strong>Method:</strong> ${details.method}<br>`;
+                }
+
+                if (details.responseBody) {
+                    errorHtml += `<strong>Response:</strong> <pre style="background: #f5f5f5; padding: 8px; margin-top: 4px; overflow-x: auto; white-space: pre-wrap;">${details.responseBody}</pre>`;
+                }
+
+                if (details.error) {
+                    errorHtml += `<strong>Error Message:</strong> ${details.error}<br>`;
+                }
+            }
+
+            errorElement.innerHTML = errorHtml;
+            errorElement.classList.add('active');
+        }
+
+        // Hide error message
+        function hideError() {
+            const errorElement = document.getElementById('errorMessage');
+            errorElement.classList.remove('active');
+        }
+
+        // Initialize app
+        loadItems();
+
+        // ==========================================
+        // SAVED SEARCHES FUNCTIONALITY
+        // ==========================================
+
+        // Initialize saved searches UI
+        function initSavedSearches() {
+            updateSavedSearchesDropdown();
+            updateSavedIndicator();
+
+            // Listen for storage changes from other tabs
+            SavedSearches.onStorageChange(() => {
+                updateSavedSearchesDropdown();
+                updateSavedIndicator();
+            });
+        }
+
+        // Get current filter configuration
+        function getCurrentConfig() {
+            const categorySelect = document.getElementById('categoryFilter');
+            const tierSelect = document.getElementById('tierFilter');
+            const raritySelect = document.getElementById('rarityFilter');
+
+            return {
+                categories: Array.from(categorySelect.selectedOptions).map(opt => opt.value),
+                tiers: Array.from(tierSelect.selectedOptions).map(opt => parseInt(opt.value)),
+                rarities: Array.from(raritySelect.selectedOptions).map(opt => opt.value)
+            };
+        }
+
+        // Load configuration into filters
+        function loadConfig(config) {
+            const categorySelect = document.getElementById('categoryFilter');
+            const tierSelect = document.getElementById('tierFilter');
+            const raritySelect = document.getElementById('rarityFilter');
+
+            // Clear all selections
+            Array.from(categorySelect.options).forEach(opt => opt.selected = false);
+            Array.from(tierSelect.options).forEach(opt => opt.selected = false);
+            Array.from(raritySelect.options).forEach(opt => opt.selected = false);
+
+            // Apply saved selections
+            if (config.categories) {
+                config.categories.forEach(val => {
+                    const opt = Array.from(categorySelect.options).find(o => o.value === val);
+                    if (opt) opt.selected = true;
+                });
+            }
+
+            if (config.tiers) {
+                config.tiers.forEach(val => {
+                    const opt = Array.from(tierSelect.options).find(o => parseInt(o.value) === val);
+                    if (opt) opt.selected = true;
+                });
+            }
+
+            if (config.rarities) {
+                config.rarities.forEach(val => {
+                    const opt = Array.from(raritySelect.options).find(o => o.value === val);
+                    if (opt) opt.selected = true;
+                });
+            }
+        }
+
+        // Update saved searches dropdown
+        function updateSavedSearchesDropdown() {
+            const select = document.getElementById('savedSearchSelect');
+            const searches = SavedSearches.getAll('gear-finder');
+
+            // Clear and rebuild dropdown
+            select.innerHTML = '<option value="">-- Load Saved Search --</option>';
+
+            searches
+                .sort((a, b) => b.timestamp - a.timestamp)
+                .forEach(search => {
+                    const option = document.createElement('option');
+                    option.value = search.id;
+                    option.textContent = search.name;
+                    select.appendChild(option);
+                });
+        }
+
+        // Check if current filters match a saved search
+        function updateSavedIndicator() {
+            const config = getCurrentConfig();
+
+            // Only check if at least one filter is selected
+            const hasFilters = config.categories.length > 0 ||
+                              config.tiers.length > 0 ||
+                              config.rarities.length > 0;
+
+            if (!hasFilters) {
+                document.getElementById('savedIndicator').style.display = 'none';
+                return;
+            }
+
+            const duplicate = SavedSearches.findDuplicate(config, 'gear-finder');
+            document.getElementById('savedIndicator').style.display = duplicate ? 'inline' : 'none';
+        }
+
+        // Save current filters
+        document.getElementById('saveSearchButton').addEventListener('click', function() {
+            const config = getCurrentConfig();
+
+            // Check if at least one filter is selected
+            const hasFilters = config.categories.length > 0 ||
+                              config.tiers.length > 0 ||
+                              config.rarities.length > 0;
+
+            if (!hasFilters) {
+                showToast('Please select at least one filter first', 'error');
+                return;
+            }
+
+            // Generate default name
+            const parts = [];
+            if (config.tiers.length > 0) {
+                parts.push(`Tier ${config.tiers.sort((a, b) => a - b).join(',')}`);
+            }
+            if (config.categories.length > 0) {
+                parts.push(config.categories[0]);
+                if (config.categories.length > 1) {
+                    parts.push(`+${config.categories.length - 1} more`);
+                }
+            }
+            if (config.rarities.length > 0) {
+                parts.push(config.rarities[0]);
+                if (config.rarities.length > 1) {
+                    parts.push(`+${config.rarities.length - 1} more`);
+                }
+            }
+            const defaultName = parts.join(' - ') || 'Untitled Search';
+
+            // Prompt for custom name
+            const customName = prompt('Enter a name for this search:', defaultName);
+
+            if (customName === null) {
+                return; // User cancelled
+            }
+
+            const result = SavedSearches.save(config, 'gear-finder', customName.trim() || null);
+
+            if (result.success) {
+                showToast('Filters saved successfully!', 'success');
+                updateSavedSearchesDropdown();
+                updateSavedIndicator();
+
+                if (result.warning) {
+                    showToast(result.warning, 'warning');
+                }
+            } else {
+                showToast(result.error, 'error');
+            }
+        });
+
+        // Load saved search
+        document.getElementById('savedSearchSelect').addEventListener('change', function() {
+            const searchId = this.value;
+
+            if (!searchId) return;
+
+            const search = SavedSearches.getById(searchId);
+
+            if (search) {
+                // Load config into filters
+                loadConfig(search.config);
+
+                // Trigger filter change to load data
+                handleFilterChange();
+
+                showToast(`Loaded: ${search.name}`, 'success');
+            } else {
+                showToast('Search not found', 'error');
+            }
+
+            // Reset dropdown
+            this.value = '';
+        });
+
+        // Update indicator when filters change
+        document.getElementById('categoryFilter').addEventListener('change', updateSavedIndicator);
+        document.getElementById('tierFilter').addEventListener('change', updateSavedIndicator);
+        document.getElementById('rarityFilter').addEventListener('change', updateSavedIndicator);
+
+        // Open manage modal
+        document.getElementById('manageSearchesButton').addEventListener('click', function() {
+            openManageModal();
+        });
+
+        function openManageModal() {
+            renderSavedSearchesList();
+            document.getElementById('manageSearchesModal').classList.add('active');
+        }
+
+        function closeManageModal() {
+            document.getElementById('manageSearchesModal').classList.remove('active');
+        }
+
+        // Close modal when clicking outside
+        document.getElementById('manageSearchesModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeManageModal();
+            }
+        });
+
+        // Render saved searches list in modal
+        function renderSavedSearchesList() {
+            const container = document.getElementById('savedSearchesList');
+            const searches = SavedSearches.getAll('gear-finder');
+
+            if (searches.length === 0) {
+                container.innerHTML = '<div class="empty-state">No saved searches yet. Save your first search to quickly access it later!</div>';
+                return;
+            }
+
+            // Sort by timestamp (newest first)
+            searches.sort((a, b) => b.timestamp - a.timestamp);
+
+            container.innerHTML = searches.map(search => {
+                const date = new Date(search.timestamp).toLocaleString();
+
+                // Build description
+                const parts = [];
+                if (search.config.categories && search.config.categories.length > 0) {
+                    parts.push(`Categories: ${search.config.categories.join(', ')}`);
+                }
+                if (search.config.tiers && search.config.tiers.length > 0) {
+                    parts.push(`Tiers: ${search.config.tiers.join(', ')}`);
+                }
+                if (search.config.rarities && search.config.rarities.length > 0) {
+                    parts.push(`Rarities: ${search.config.rarities.join(', ')}`);
+                }
+                const description = parts.join(' • ');
+
+                return `
+                    <div class="saved-search-item">
+                        <div class="saved-search-header">
+                            <div class="saved-search-name">${escapeHtml(search.name)}</div>
+                            <div class="saved-search-actions">
+                                <button class="saved-search-btn load" onclick="loadSavedSearch('${search.id}')">📂 Load</button>
+                                <button class="saved-search-btn" onclick="renameSavedSearch('${search.id}')">✏️ Rename</button>
+                                <button class="saved-search-btn delete" onclick="deleteSavedSearch('${search.id}')">🗑️ Delete</button>
+                            </div>
+                        </div>
+                        <div class="saved-search-details">
+                            <span class="saved-search-type">Gear Finder</span>
+                            ${description}
+                            <br><small>Saved: ${date}</small>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Load saved search from modal
+        function loadSavedSearch(id) {
+            const search = SavedSearches.getById(id);
+
+            if (search) {
+                // Load config into filters
+                loadConfig(search.config);
+
+                // Trigger filter change to load data
+                handleFilterChange();
+
+                closeManageModal();
+                showToast(`Loaded: ${search.name}`, 'success');
+            } else {
+                showToast('Search not found', 'error');
+            }
+        }
+
+        // Rename saved search
+        function renameSavedSearch(id) {
+            const search = SavedSearches.getById(id);
+
+            if (!search) {
+                showToast('Search not found', 'error');
+                return;
+            }
+
+            const newName = prompt('Enter new name:', search.name);
+
+            if (newName === null) {
+                return; // User cancelled
+            }
+
+            if (newName.trim()) {
+                const result = SavedSearches.update(id, { name: newName.trim() });
+
+                if (result.success) {
+                    showToast('Search renamed successfully', 'success');
+                    renderSavedSearchesList();
+                    updateSavedSearchesDropdown();
+                } else {
+                    showToast(result.error, 'error');
+                }
+            } else {
+                showToast('Name cannot be empty', 'error');
+            }
+        }
+
+        // Delete saved search
+        function deleteSavedSearch(id) {
+            const search = SavedSearches.getById(id);
+
+            if (!search) {
+                showToast('Search not found', 'error');
+                return;
+            }
+
+            if (!confirm(`Delete "${search.name}"?`)) {
+                return;
+            }
+
+            const result = SavedSearches.delete(id);
+
+            if (result.success) {
+                showToast('Search deleted successfully', 'success');
+                renderSavedSearchesList();
+                updateSavedSearchesDropdown();
+                updateSavedIndicator();
+            } else {
+                showToast(result.error, 'error');
+            }
+        }
+
+        // Export searches
+        function exportSearches() {
+            const searches = SavedSearches.getAll('gear-finder');
+
+            if (searches.length === 0) {
+                showToast('No searches to export', 'warning');
+                return;
+            }
+
+            const json = SavedSearches.exportToJSON();
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `bitcraft-gear-finder-searches-${Date.now()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+
+            showToast('Searches exported successfully', 'success');
+        }
+
+        // Import searches
+        function importSearches() {
+            const fileInput = document.getElementById('importFileInput');
+
+            fileInput.onchange = function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const result = SavedSearches.importFromJSON(event.target.result, true);
+
+                    if (result.success) {
+                        showToast(`Imported ${result.imported} searches (${result.total} total)`, 'success');
+                        renderSavedSearchesList();
+                        updateSavedSearchesDropdown();
+
+                        if (result.warning) {
+                            showToast(result.warning, 'warning');
+                        }
+                    } else {
+                        showToast(result.error, 'error');
+                    }
+                };
+                reader.readAsText(file);
+
+                // Reset file input
+                fileInput.value = '';
+            };
+
+            fileInput.click();
+        }
+
+        // Clear all searches
+        function clearAllSearches() {
+            const searches = SavedSearches.getAll('gear-finder');
+
+            if (searches.length === 0) {
+                showToast('No searches to clear', 'warning');
+                return;
+            }
+
+            if (!confirm(`Delete all ${searches.length} saved searches? This cannot be undone.`)) {
+                return;
+            }
+
+            const result = SavedSearches.clear();
+
+            if (result.success) {
+                showToast('All searches cleared', 'success');
+                renderSavedSearchesList();
+                updateSavedSearchesDropdown();
+                updateSavedIndicator();
+            } else {
+                showToast(result.error, 'error');
+            }
+        }
+
+        // Show toast notification
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${type}`;
+            toast.style.display = 'block';
+
+            setTimeout(() => {
+                toast.style.display = 'none';
+            }, 3000);
+        }
+
+        // HTML escape helper
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+
+        // Initialize saved searches on page load
+        window.addEventListener('DOMContentLoaded', initSavedSearches);
+    </script>
+</body>
+</html>

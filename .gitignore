@@ -1,0 +1,18 @@
+# Node modules
+node_modules/
+
+# Wrangler build artifacts and state
+.wrangler/
+
+# Claude settings
+.claude/
+
+# Windows reserved filenames
+nul
+
+# Development files
+proxy-server.py
+start-server.bat
+
+# Temporary test files
+3020003.json

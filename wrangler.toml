@@ -1,0 +1,30 @@
+# Cloudflare Workers Configuration
+# This file configures your worker deployment
+
+name = "bitcraft-market-proxy"
+main = "cloudflare-worker.js"
+compatibility_date = "2024-01-01"
+
+# Workers Free Tier:
+# - 100,000 requests/day
+# - No credit card required
+# - Perfect for this use case
+
+# Your worker is available at:
+# https://bitcraft-market-proxy.jbaird-cb6.workers.dev
+#
+# API_BASE_URL has been configured in index.html, gear-finder.html, and market-monitor.html
+
+# Durable Objects Configuration
+# Used for market monitoring state management
+[[durable_objects.bindings]]
+name = "MARKET_MONITOR"
+class_name = "MarketMonitor"
+
+# Note: Migration has been applied. The migration block is removed after first deployment
+# to allow GitHub automated deployments to work properly.
+
+# Scheduled Events (Cron Triggers)
+# Polls the market API every 5 minutes
+[triggers]
+crons = ["*/5 * * * *"]
