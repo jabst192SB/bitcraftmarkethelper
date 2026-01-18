@@ -21,10 +21,13 @@ compatibility_date = "2024-01-01"
 name = "MARKET_MONITOR"
 class_name = "MarketMonitor"
 
-# Note: Migration has been applied. The migration block is removed after first deployment
-# to allow GitHub automated deployments to work properly.
+# Durable Objects Migration
+# Required for Durable Objects to work properly
+[[migrations]]
+tag = "v1"
+new_classes = ["MarketMonitor"]
 
 # Scheduled Events (Cron Triggers)
-# Polls the market API every 5 minutes
+# Polls the market API every minute (for testing)
 [triggers]
-crons = ["*/5 * * * *"]
+crons = ["*/1 * * * *"]

@@ -700,7 +700,7 @@
 <body>
     <div class="container">
         <h1>📊 Market Order Monitor</h1>
-        <div class="subtitle">Real-time tracking of market order changes • Updates every 5 minutes</div>
+        <div class="subtitle">Real-time tracking of market order changes • Updates every minute</div>
 
         <div class="nav-links">
             <a href="index.html">← Back to Market Helper</a>
@@ -730,6 +730,7 @@
 
         <div class="controls">
             <button class="btn" id="refreshBtn" onclick="refreshData()">🔄 Refresh Now</button>
+            <button class="btn" id="triggerBtn" onclick="triggerWorkerUpdate()">⚡ Trigger Worker Update</button>
             <button class="btn secondary" id="pauseBtn" onclick="togglePause()">⏸️ Pause Auto-Refresh</button>
             <button class="btn secondary" onclick="clearHighlights()">✨ Clear Highlights</button>
 
@@ -879,6 +880,50 @@
                 updateStatus('Error', 'error');
             } finally {
                 document.getElementById('refreshBtn').disabled = false;
+            }
+        }
+
+        async function triggerWorkerUpdate() {
+            try {
+                const btn = document.getElementById('triggerBtn');
+                btn.disabled = true;
+                btn.textContent = '⚡ Triggering...';
+
+                // Call the worker trigger endpoint
+                const response = await fetch(`${API_BASE_URL}/api/monitor/trigger`, {
+                    method: 'POST'
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Failed to trigger worker: ${response.status}`);
+                }
+
+                const result = await response.json();
+                console.log('Worker triggered:', result);
+
+                // Show success message
+                btn.textContent = '✅ Triggered!';
+                setTimeout(() => {
+                    btn.textContent = '⚡ Trigger Worker Update';
+                }, 2000);
+
+                // Refresh data after a short delay to get the updated state
+                setTimeout(() => {
+                    refreshData();
+                }, 3000);
+
+            } catch (error) {
+                console.error('Error triggering worker:', error);
+                showError('Failed to trigger worker update: ' + error.message);
+                const btn = document.getElementById('triggerBtn');
+                btn.textContent = '❌ Failed';
+                setTimeout(() => {
+                    btn.textContent = '⚡ Trigger Worker Update';
+                }, 2000);
+            } finally {
+                setTimeout(() => {
+                    document.getElementById('triggerBtn').disabled = false;
+                }, 2000);
             }
         }
 
