@@ -1012,7 +1012,7 @@
                 try {
                     const cargoResponse = await fetch('cargo.json');
                     const cargoData = await cargoResponse.json();
-                    cargo = (cargoData.cargo || []).map(cargoItem => ({
+                    cargo = (cargoData.cargos || []).map(cargoItem => ({
                         ...cargoItem,
                         itemType: 'cargo' // Mark as cargo
                     }));
@@ -1032,11 +1032,11 @@
             }
         }
 
-        // Populate tier dropdown with unique tiers from compendium items only
+        // Populate tier dropdown with unique tiers from compendium items and cargo
         function populateTierDropdown() {
             const tierSet = new Set();
             allItems.forEach(item => {
-                if (item.compendiumEntry === true) {
+                if (item.compendiumEntry === true || item.itemType === 'cargo') {
                     tierSet.add(item.tier);
                 }
             });
@@ -1068,9 +1068,10 @@
             const selectedTier = tierFilter.value;
 
             // Filter items by search term, compendium entry, and tier
+            // Include cargo (Package items) even if compendiumEntry is false
             let filteredItems = allItems.filter(item =>
                 item.name.toLowerCase().includes(searchTerm) &&
-                item.compendiumEntry === true
+                (item.compendiumEntry === true || item.itemType === 'cargo')
             );
 
             // Apply tier filter if not "all"
@@ -1372,9 +1373,10 @@
             const selectedTier = tierFilter.value;
 
             // Filter items by search term, compendium entry, and tier
+            // Include cargo (Package items) even if compendiumEntry is false
             let filteredItems = allItems.filter(item =>
                 item.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
-                item.compendiumEntry === true
+                (item.compendiumEntry === true || item.itemType === 'cargo')
             );
 
             // Apply tier filter if not "all"
