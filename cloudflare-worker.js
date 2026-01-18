@@ -101,22 +101,38 @@ export class MarketMonitor {
         const currentDetails = orderDetails[change.itemId];
         const prevDetails = previousOrderDetails[change.itemId];
 
+        // Build base change object
+        const enhancedChange = { ...change };
+
         if (currentDetails) {
           // Diff individual orders to find added/removed
           const orderDiff = this.diffOrders(prevDetails, currentDetails);
 
-          return {
-            ...change,
-            orderDetails: {
-              sellOrders: currentDetails.sellOrders,
-              buyOrders: currentDetails.buyOrders,
-              stats: currentDetails.stats
-            },
-            addedOrders: orderDiff.added,
-            removedOrders: orderDiff.removed
+          enhancedChange.orderDetails = {
+            sellOrders: currentDetails.sellOrders || [],
+            buyOrders: currentDetails.buyOrders || [],
+            stats: currentDetails.stats || {}
           };
+          enhancedChange.addedOrders = orderDiff.added;
+          enhancedChange.removedOrders = orderDiff.removed;
+          enhancedChange.hasDetailedOrders = true;
+        } else if (prevDetails) {
+          // We have previous details but not current - use previous as fallback
+          enhancedChange.orderDetails = {
+            sellOrders: prevDetails.sellOrders || [],
+            buyOrders: prevDetails.buyOrders || [],
+            stats: prevDetails.stats || {}
+          };
+          enhancedChange.addedOrders = { sellOrders: [], buyOrders: [] };
+          enhancedChange.removedOrders = { sellOrders: [], buyOrders: [] };
+          enhancedChange.hasDetailedOrders = false;
+          enhancedChange.fallbackToPrevious = true;
+        } else {
+          // No details available at all
+          enhancedChange.hasDetailedOrders = false;
         }
-        return change;
+
+        return enhancedChange;
       });
 
       // Add changes to history
@@ -451,11 +467,13 @@ export default {
       // Find items we don't have order details for yet
       const missingDetailIds = allItemIds.filter(id => !orderDetails[id] && !orderDetails[String(id)]);
 
-      // Prioritize changed items, then fill with missing items
+      // PRIORITY 1: Changed items (always fetch these to get accurate diff)
+      // PRIORITY 2: Missing items (items we've never fetched before)
+      // This ensures that when we detect a change, we can show detailed added/removed orders
       const itemIdsToFetch = [
-        ...changedItemIds.slice(0, MAX_ITEMS_PER_RUN),
-        ...missingDetailIds.slice(0, Math.max(0, MAX_ITEMS_PER_RUN - changedItemIds.length))
-      ].slice(0, MAX_ITEMS_PER_RUN);
+        ...changedItemIds, // All changed items first
+        ...missingDetailIds.filter(id => !changedItemIds.includes(id)) // Then missing items
+      ].slice(0, MAX_ITEMS_PER_RUN); // Limit to max per run
 
       if (itemIdsToFetch.length > 0) {
         console.log(`Fetching order details for ${itemIdsToFetch.length} items (${changedItemIds.length} changed, ${missingDetailIds.length} missing)`);
@@ -465,6 +483,30 @@ export default {
         // Merge fetched items into full order details
         orderDetails = { ...orderDetails, ...fetchedOrderDetails };
         console.log(`Updated order details for ${Object.keys(fetchedOrderDetails).length} items`);
+      }
+
+      // Limit total stored order details to prevent storage bloat
+      // Keep only the most recently updated items (up to 500)
+      const MAX_STORED_ITEMS = 500;
+      if (Object.keys(orderDetails).length > MAX_STORED_ITEMS) {
+        console.log(`Pruning order details from ${Object.keys(orderDetails).length} to ${MAX_STORED_ITEMS}`);
+
+        // Sort by item presence in current market data (keep active items)
+        const activeItemIds = new Set(allItemIds);
+        const sortedKeys = Object.keys(orderDetails).sort((a, b) => {
+          const aActive = activeItemIds.has(a) || activeItemIds.has(String(a));
+          const bActive = activeItemIds.has(b) || activeItemIds.has(String(b));
+          if (aActive && !bActive) return -1;
+          if (!aActive && bActive) return 1;
+          return 0;
+        });
+
+        // Keep only top MAX_STORED_ITEMS
+        const prunedDetails = {};
+        sortedKeys.slice(0, MAX_STORED_ITEMS).forEach(key => {
+          prunedDetails[key] = orderDetails[key];
+        });
+        orderDetails = prunedDetails;
       }
 
       console.log(`Total order details: ${Object.keys(orderDetails).length} items`);
@@ -531,11 +573,13 @@ async function handleManualTrigger(env) {
     // Find items we don't have order details for yet
     const missingDetailIds = allItemIds.filter(id => !orderDetails[id] && !orderDetails[String(id)]);
 
-    // Prioritize changed items, then fill with missing items
+    // PRIORITY 1: Changed items (always fetch these to get accurate diff)
+    // PRIORITY 2: Missing items (items we've never fetched before)
+    // This ensures that when we detect a change, we can show detailed added/removed orders
     const itemIdsToFetch = [
-      ...changedItemIds.slice(0, MAX_ITEMS_PER_RUN),
-      ...missingDetailIds.slice(0, Math.max(0, MAX_ITEMS_PER_RUN - changedItemIds.length))
-    ].slice(0, MAX_ITEMS_PER_RUN);
+      ...changedItemIds, // All changed items first
+      ...missingDetailIds.filter(id => !changedItemIds.includes(id)) // Then missing items
+    ].slice(0, MAX_ITEMS_PER_RUN); // Limit to max per run
 
     if (itemIdsToFetch.length > 0) {
       console.log(`Fetching order details for ${itemIdsToFetch.length} items (${changedItemIds.length} changed, ${missingDetailIds.length} missing)`);
@@ -545,6 +589,30 @@ async function handleManualTrigger(env) {
       // Merge fetched items into full order details
       orderDetails = { ...orderDetails, ...fetchedOrderDetails };
       console.log(`Updated order details for ${Object.keys(fetchedOrderDetails).length} items`);
+    }
+
+    // Limit total stored order details to prevent storage bloat
+    // Keep only the most recently updated items (up to 500)
+    const MAX_STORED_ITEMS = 500;
+    if (Object.keys(orderDetails).length > MAX_STORED_ITEMS) {
+      console.log(`Pruning order details from ${Object.keys(orderDetails).length} to ${MAX_STORED_ITEMS}`);
+
+      // Sort by item presence in current market data (keep active items)
+      const activeItemIds = new Set(allItemIds);
+      const sortedKeys = Object.keys(orderDetails).sort((a, b) => {
+        const aActive = activeItemIds.has(a) || activeItemIds.has(String(a));
+        const bActive = activeItemIds.has(b) || activeItemIds.has(String(b));
+        if (aActive && !bActive) return -1;
+        if (!aActive && bActive) return 1;
+        return 0;
+      });
+
+      // Keep only top MAX_STORED_ITEMS
+      const prunedDetails = {};
+      sortedKeys.slice(0, MAX_STORED_ITEMS).forEach(key => {
+        prunedDetails[key] = orderDetails[key];
+      });
+      orderDetails = prunedDetails;
     }
 
     console.log(`Total order details: ${Object.keys(orderDetails).length} items`);
@@ -760,11 +828,40 @@ async function fetchItemOrders(itemId, itemType = 0) {
   const sellOrders = (data.sellOrders || []).filter(order => order.regionId === MONITOR_REGION_ID);
   const buyOrders = (data.buyOrders || []).filter(order => order.regionId === MONITOR_REGION_ID);
 
+  // Minimize stored data - only keep essential fields
+  const minimalSellOrders = sellOrders.map(o => ({
+    claimName: o.claimName,
+    claimEntityId: o.claimEntityId,
+    ownerName: o.ownerName || o.ownerUsername,
+    ownerEntityId: o.ownerEntityId,
+    quantity: o.quantity,
+    priceThreshold: o.priceThreshold,
+    regionId: o.regionId
+  }));
+
+  const minimalBuyOrders = buyOrders.map(o => ({
+    claimName: o.claimName,
+    claimEntityId: o.claimEntityId,
+    ownerName: o.ownerName || o.ownerUsername,
+    ownerEntityId: o.ownerEntityId,
+    quantity: o.quantity,
+    priceThreshold: o.priceThreshold,
+    regionId: o.regionId
+  }));
+
+  // Store minimal stats (not the full object)
+  const minimalStats = {
+    lowestSell: data.stats?.lowestSell || null,
+    highestBuy: data.stats?.highestBuy || null,
+    totalAvailableSell: data.stats?.totalAvailableSell || 0,
+    totalAvailableBuy: data.stats?.totalAvailableBuy || 0
+  };
+
   return {
     itemId: itemId,
-    sellOrders: sellOrders,
-    buyOrders: buyOrders,
-    stats: data.stats || {}
+    sellOrders: minimalSellOrders,
+    buyOrders: minimalBuyOrders,
+    stats: minimalStats
   };
 }
 

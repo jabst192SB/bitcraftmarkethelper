@@ -1412,6 +1412,9 @@
 
                     // Build detailed order information
                     let orderDetails = '';
+                    let hasDetailedDiff = false;
+
+                    // Check if we have detailed added/removed orders
                     if (change.addedOrders) {
                         const addedSellOrders = change.addedOrders.sellOrders || [];
                         const addedBuyOrders = change.addedOrders.buyOrders || [];
@@ -1422,6 +1425,7 @@
                             if ((orderType === 'buy' && !showBuyOrders) || (orderType === 'sell' && !showSellOrders)) {
                                 return;
                             }
+                            hasDetailedDiff = true;
                             orderDetails += `
                                 <div class="individual-order">
                                     <div class="change-order-info">
@@ -1447,6 +1451,7 @@
                             if ((orderType === 'buy' && !showBuyOrders) || (orderType === 'sell' && !showSellOrders)) {
                                 return;
                             }
+                            hasDetailedDiff = true;
                             orderDetails += `
                                 <div class="individual-order">
                                     <div class="change-order-info">
@@ -1461,6 +1466,65 @@
                                 </div>
                             `;
                         });
+                    }
+
+                    // FALLBACK: If no detailed diff available, show current orders from orderDetails
+                    if (!hasDetailedDiff && change.orderDetails && (change.orderDetails.sellOrders?.length > 0 || change.orderDetails.buyOrders?.length > 0)) {
+                        orderDetails += `<div style="margin-top: 8px; padding: 8px; background-color: rgba(74, 158, 255, 0.1); border-radius: 4px; font-size: 11px; color: #b0b0b0;">
+                            ℹ️ Current market state (exact changes pending next full sync):
+                        </div>`;
+
+                        // Show current sell orders
+                        const currentSellOrders = change.orderDetails.sellOrders || [];
+                        const currentBuyOrders = change.orderDetails.buyOrders || [];
+
+                        currentSellOrders.forEach(order => {
+                            if (!showSellOrders) return;
+                            orderDetails += `
+                                <div class="individual-order">
+                                    <div class="change-order-info">
+                                        <span class="order-type-badge sell">SELL</span>
+                                        <span class="claim-badge">${escapeHtml(order.claimName || 'Unknown Claim')}</span>
+                                        <span class="owner-badge">${escapeHtml(order.ownerName || order.ownerUsername || 'Unknown')}</span>
+                                    </div>
+                                    <div style="margin-top: 4px; font-size: 12px; color: #b0b0b0;">
+                                        Qty: ${Number(order.quantity).toLocaleString()} @ ${Number(order.priceThreshold).toLocaleString()} hex
+                                    </div>
+                                </div>
+                            `;
+                        });
+
+                        currentBuyOrders.forEach(order => {
+                            if (!showBuyOrders) return;
+                            orderDetails += `
+                                <div class="individual-order">
+                                    <div class="change-order-info">
+                                        <span class="order-type-badge buy">BUY</span>
+                                        <span class="claim-badge">${escapeHtml(order.claimName || 'Unknown Claim')}</span>
+                                        <span class="owner-badge">${escapeHtml(order.ownerName || order.ownerUsername || 'Unknown')}</span>
+                                    </div>
+                                    <div style="margin-top: 4px; font-size: 12px; color: #b0b0b0;">
+                                        Qty: ${Number(order.quantity).toLocaleString()} @ ${Number(order.priceThreshold).toLocaleString()} hex
+                                    </div>
+                                </div>
+                            `;
+                        });
+                    }
+
+                    // FALLBACK 2: If no orderDetails but we have stats, show those
+                    if (!hasDetailedDiff && orderDetails === '' && change.orderDetails?.stats) {
+                        const stats = change.orderDetails.stats;
+                        if (stats.lowestSell || stats.highestBuy || stats.totalAvailableSell || stats.totalAvailableBuy) {
+                            orderDetails += `<div style="margin-top: 8px; padding: 8px; background-color: rgba(74, 158, 255, 0.1); border-radius: 4px; font-size: 12px; color: #e0e0e0;">
+                                📊 Market Stats:<br>
+                                ${stats.lowestSell ? `Lowest Sell: ${Number(stats.lowestSell).toLocaleString()} hex` : ''}
+                                ${stats.lowestSell && stats.highestBuy ? ' | ' : ''}
+                                ${stats.highestBuy ? `Highest Buy: ${Number(stats.highestBuy).toLocaleString()} hex` : ''}<br>
+                                ${stats.totalAvailableSell ? `Available to Sell: ${Number(stats.totalAvailableSell).toLocaleString()}` : ''}
+                                ${stats.totalAvailableSell && stats.totalAvailableBuy ? ' | ' : ''}
+                                ${stats.totalAvailableBuy ? `Available to Buy: ${Number(stats.totalAvailableBuy).toLocaleString()}` : ''}
+                            </div>`;
+                        }
                     }
 
                     entries.push(`
