@@ -41,12 +41,6 @@ export class MarketMonitor {
       return this.updateState(data.marketData, data.orderDetails || {});
     } else if (path === '/api/monitor/reset') {
       return this.resetState();
-    } else if (path === '/api/monitor/setRebuildTime' && request.method === 'POST') {
-      const { timestamp } = await request.json();
-      await this.state.storage.put('lastFullRebuild', timestamp);
-      return new Response(JSON.stringify({ success: true }), {
-        headers: { 'Content-Type': 'application/json' }
-      });
     }
 
     return new Response('Not found', { status: 404 });
@@ -60,14 +54,12 @@ export class MarketMonitor {
     const orderDetails = await this.state.storage.get('orderDetails') || {};
     const lastUpdate = await this.state.storage.get('lastUpdate');
     const changeCount = await this.state.storage.get('changeCount') || 0;
-    const lastFullRebuild = await this.state.storage.get('lastFullRebuild') || 0;
 
     return new Response(JSON.stringify({
       currentState: currentState || null,
       orderDetails: orderDetails,
       lastUpdate: lastUpdate || null,
       changeCount: changeCount,
-      lastFullRebuild: lastFullRebuild,
       timestamp: Date.now()
     }), {
       headers: { 'Content-Type': 'application/json' }
@@ -422,25 +414,11 @@ export default {
       const id = env.MARKET_MONITOR.idFromName('global');
       const stub = env.MARKET_MONITOR.get(id);
 
-      // Check if we need a full rebuild (daily)
+      // Get current state for incremental update
       const stateResponse = await stub.fetch(new Request('https://dummy/api/monitor/state'));
       const stateData = await stateResponse.json();
-      const lastFullRebuild = stateData.lastFullRebuild || 0;
-      const now = Date.now();
-      const ONE_DAY = 24 * 60 * 60 * 1000;
 
-      if (now - lastFullRebuild > ONE_DAY) {
-        console.log('Starting daily full rebuild...');
-        await performFullRebuild(stub);
-        await stub.fetch(new Request('https://dummy/api/monitor/setRebuildTime', {
-          method: 'POST',
-          body: JSON.stringify({ timestamp: now }),
-          headers: { 'Content-Type': 'application/json' }
-        }));
-        return;
-      }
-
-      // Normal incremental update
+      // Incremental update - fetches changed items and gradually fills in missing items
       console.log('Running incremental update...');
 
       // Fetch current market data (list of items with orders)
@@ -605,45 +583,6 @@ async function handleManualTrigger(env) {
   }
 }
 
-/**
- * Perform full rebuild of all order details (daily operation)
- */
-async function performFullRebuild(stub) {
-  console.log('=== Full Rebuild Started ===');
-  const marketData = await fetchMarketData();
-  const allItemIds = marketData.items.map(item => item.id);
-  console.log(`Total items with orders: ${allItemIds.length}`);
-
-  const BATCH_SIZE = 100;
-  const DELAY_MS = 500;
-  let orderDetails = {};
-
-  for (let i = 0; i < allItemIds.length; i += BATCH_SIZE) {
-    const batch = allItemIds.slice(i, i + BATCH_SIZE);
-    const batchResults = await fetchOrdersForItems(batch);
-    orderDetails = { ...orderDetails, ...batchResults };
-
-    const progress = Math.min(i + BATCH_SIZE, allItemIds.length);
-    console.log(`Rebuilt ${progress}/${allItemIds.length} items (${Math.round(progress/allItemIds.length*100)}%)`);
-
-    if (i + BATCH_SIZE < allItemIds.length) {
-      await new Promise(resolve => setTimeout(resolve, DELAY_MS));
-    }
-  }
-
-  console.log(`Fetched order details for ${Object.keys(orderDetails).length} items`);
-
-  // Update state with complete data
-  const response = await stub.fetch(new Request('https://dummy/api/monitor/update', {
-    method: 'POST',
-    body: JSON.stringify({ marketData, orderDetails }),
-    headers: { 'Content-Type': 'application/json' }
-  }));
-
-  const result = await response.json();
-  console.log('=== Full Rebuild Completed ===');
-  console.log('Result:', result);
-}
 
 /**
  * Handle monitor API requests
@@ -831,8 +770,8 @@ async function fetchOrdersForItems(itemIds) {
 
   console.log(`Need to fetch ${itemIds.length} items`);
 
-  // Fetch in batches of 99 (API max is 100) with minimal delay
-  const batchSize = 99;
+  // Fetch in batches of 40 to stay under Cloudflare's 50 subrequest limit
+  const batchSize = 40;
   const delayBetweenBatches = 100; // ms
 
   for (let i = 0; i < itemIds.length; i += batchSize) {

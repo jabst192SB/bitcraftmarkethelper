@@ -695,6 +695,39 @@
             padding: 40px;
             font-style: italic;
         }
+
+        /* Order type filter checkboxes */
+        .order-type-filters {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            padding: 10px 15px;
+            background-color: #3a3a3a;
+            border-radius: 4px;
+        }
+
+        .order-type-filters label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            color: #e0e0e0;
+            font-size: 13px;
+            user-select: none;
+        }
+
+        .order-type-filters input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+            accent-color: #4a9eff;
+        }
+
+        .order-type-filters .filter-label {
+            color: #b0b0b0;
+            font-size: 12px;
+            margin-right: 5px;
+        }
     </style>
 </head>
 <body>
@@ -743,6 +776,18 @@
                        autocomplete="off">
                 <button class="claim-filter-clear" id="claimFilterClear" onclick="clearClaimFilter()" style="display: none;">✕</button>
                 <div class="claim-dropdown" id="claimDropdown"></div>
+            </div>
+
+            <div class="order-type-filters">
+                <span class="filter-label">Show:</span>
+                <label>
+                    <input type="checkbox" id="showBuyOrders" checked onchange="applyOrderTypeFilter()">
+                    Buy Orders
+                </label>
+                <label>
+                    <input type="checkbox" id="showSellOrders" checked onchange="applyOrderTypeFilter()">
+                    Sell Orders
+                </label>
             </div>
         </div>
 
@@ -1016,6 +1061,10 @@
         }
 
         function renderClaimView(container) {
+            // Get order type filters
+            const showBuyOrders = document.getElementById('showBuyOrders')?.checked ?? true;
+            const showSellOrders = document.getElementById('showSellOrders')?.checked ?? true;
+
             // Filter by selected claim if applicable
             let claimsToRender = Array.from(claimOrdersMap.entries());
 
@@ -1033,6 +1082,12 @@
 
             const html = claimsToRender.map(([claimName, claimData]) => {
                 const ordersHtml = Array.from(claimData.orderGroups.values())
+                    .filter(group => {
+                        // Apply order type filter
+                        if (group.type === 'buy' && !showBuyOrders) return false;
+                        if (group.type === 'sell' && !showSellOrders) return false;
+                        return true;
+                    })
                     .sort((a, b) => a.itemName.localeCompare(b.itemName))
                     .map(group => {
                         const ownerCount = group.ownerNames.size;
@@ -1050,13 +1105,25 @@
                         `;
                     }).join('');
 
+                // Calculate filtered counts
+                const filteredGroups = Array.from(claimData.orderGroups.values()).filter(group => {
+                    if (group.type === 'buy' && !showBuyOrders) return false;
+                    if (group.type === 'sell' && !showSellOrders) return false;
+                    return true;
+                });
+                const filteredSellCount = filteredGroups.filter(g => g.type === 'sell').length;
+                const filteredBuyCount = filteredGroups.filter(g => g.type === 'buy').length;
+
+                // Skip claims with no visible orders after filtering
+                if (ordersHtml.trim() === '') return '';
+
                 return `
                     <div class="claim-section">
                         <div class="claim-header" onclick="toggleClaimSection(this)">
                             <span class="claim-name">${escapeHtml(claimName)}</span>
                             <span class="claim-stats">
-                                <span class="sell-count">${claimData.sellCount} sell</span>
-                                <span class="buy-count">${claimData.buyCount} buy</span>
+                                ${showSellOrders ? `<span class="sell-count">${filteredSellCount} sell</span>` : ''}
+                                ${showBuyOrders ? `<span class="buy-count">${filteredBuyCount} buy</span>` : ''}
                             </span>
                         </div>
                         <div class="claim-orders">
@@ -1064,9 +1131,13 @@
                         </div>
                     </div>
                 `;
-            }).join('');
+            }).filter(html => html !== '').join('');
 
-            container.innerHTML = html;
+            if (html === '') {
+                container.innerHTML = '<div class="no-orders-message">No orders match the current filters.</div>';
+            } else {
+                container.innerHTML = html;
+            }
         }
 
         function renderItemView(container, data) {
@@ -1159,6 +1230,10 @@
         function updateChangeLog(data) {
             const changeLog = document.getElementById('changeLog');
 
+            // Get order type filters
+            const showBuyOrders = document.getElementById('showBuyOrders')?.checked ?? true;
+            const showSellOrders = document.getElementById('showSellOrders')?.checked ?? true;
+
             if (!data.changes || data.changes.length === 0) {
                 changeLog.innerHTML = '<div class="empty-state">No changes detected yet. Changes will appear here when market orders are added, removed, or modified.</div>';
                 return;
@@ -1218,6 +1293,10 @@
 
                         [...addedSellOrders, ...addedBuyOrders].forEach(order => {
                             const orderType = addedSellOrders.includes(order) ? 'sell' : 'buy';
+                            // Apply order type filter
+                            if ((orderType === 'buy' && !showBuyOrders) || (orderType === 'sell' && !showSellOrders)) {
+                                return;
+                            }
                             orderDetails += `
                                 <div class="individual-order">
                                     <div class="change-order-info">
@@ -1225,6 +1304,9 @@
                                         <span class="action-badge added">➕ Added</span>
                                         <span class="claim-badge">${escapeHtml(order.claimName || 'Unknown Claim')}</span>
                                         <span class="owner-badge">${escapeHtml(order.ownerName || 'Unknown')}</span>
+                                    </div>
+                                    <div style="margin-top: 4px; font-size: 12px; color: #b0b0b0;">
+                                        Qty: ${order.quantity.toLocaleString()} @ ${order.priceThreshold.toLocaleString()} hex
                                     </div>
                                 </div>
                             `;
@@ -1236,6 +1318,10 @@
 
                         [...removedSellOrders, ...removedBuyOrders].forEach(order => {
                             const orderType = removedSellOrders.includes(order) ? 'sell' : 'buy';
+                            // Apply order type filter
+                            if ((orderType === 'buy' && !showBuyOrders) || (orderType === 'sell' && !showSellOrders)) {
+                                return;
+                            }
                             orderDetails += `
                                 <div class="individual-order">
                                     <div class="change-order-info">
@@ -1243,6 +1329,9 @@
                                         <span class="action-badge removed">➖ Removed</span>
                                         <span class="claim-badge">${escapeHtml(order.claimName || 'Unknown Claim')}</span>
                                         <span class="owner-badge">${escapeHtml(order.ownerName || 'Unknown')}</span>
+                                    </div>
+                                    <div style="margin-top: 4px; font-size: 12px; color: #b0b0b0;">
+                                        Qty: ${order.quantity.toLocaleString()} @ ${order.priceThreshold.toLocaleString()} hex
                                     </div>
                                 </div>
                             `;
@@ -1532,6 +1621,19 @@
                     }
                 });
             });
+        }
+
+        // ==========================================
+        // ORDER TYPE FILTER
+        // ==========================================
+        function applyOrderTypeFilter() {
+            // Re-render table and changes with filter applied
+            if (currentState) {
+                updateMarketTable({ currentState });
+            }
+            if (lastChangesData) {
+                updateChangeLog(lastChangesData);
+            }
         }
 
         // ==========================================
