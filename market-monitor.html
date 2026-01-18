@@ -477,6 +477,157 @@
         .active-filter .remove-filter:hover {
             color: #f87171;
         }
+
+        /* Claim-grouped order display */
+        .claim-section {
+            background-color: #3a3a3a;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            overflow: hidden;
+        }
+
+        .claim-header {
+            background-color: #2a2a2a;
+            padding: 12px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            border-bottom: 1px solid #4a4a4a;
+        }
+
+        .claim-header:hover {
+            background-color: #353535;
+        }
+
+        .claim-header .claim-name {
+            color: #4a9eff;
+            font-weight: 600;
+            font-size: 15px;
+        }
+
+        .claim-header .claim-stats {
+            display: flex;
+            gap: 15px;
+            font-size: 13px;
+        }
+
+        .claim-header .claim-stats .sell-count {
+            color: #f87171;
+        }
+
+        .claim-header .claim-stats .buy-count {
+            color: #4ade80;
+        }
+
+        .claim-orders {
+            padding: 10px 15px;
+        }
+
+        .claim-orders.collapsed {
+            display: none;
+        }
+
+        .order-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 10px;
+            border-bottom: 1px solid #4a4a4a;
+            font-size: 13px;
+        }
+
+        .order-row:last-child {
+            border-bottom: none;
+        }
+
+        .order-row:hover {
+            background-color: #454545;
+        }
+
+        .order-row .order-item-name {
+            color: #e0e0e0;
+            flex: 1;
+        }
+
+        .order-row .order-item-name a {
+            color: #4a9eff;
+            text-decoration: none;
+        }
+
+        .order-row .order-item-name a:hover {
+            text-decoration: underline;
+        }
+
+        .order-row .order-type {
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-right: 10px;
+        }
+
+        .order-row .order-type.sell {
+            background-color: rgba(248, 113, 113, 0.2);
+            color: #f87171;
+        }
+
+        .order-row .order-type.buy {
+            background-color: rgba(74, 222, 128, 0.2);
+            color: #4ade80;
+        }
+
+        .order-row .order-qty {
+            color: #b0b0b0;
+            margin-right: 15px;
+            min-width: 80px;
+        }
+
+        .order-row .order-price {
+            color: #fbbf24;
+            font-weight: 500;
+            min-width: 80px;
+            text-align: right;
+        }
+
+        .view-toggle {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 15px;
+        }
+
+        .view-toggle button {
+            padding: 8px 16px;
+            background-color: #3a3a3a;
+            border: 1px solid #4a4a4a;
+            color: #b0b0b0;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+
+        .view-toggle button:hover {
+            background-color: #4a4a4a;
+        }
+
+        .view-toggle button.active {
+            background-color: #4a9eff;
+            color: #1a1a1a;
+            border-color: #4a9eff;
+        }
+
+        .orders-container {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .no-orders-message {
+            text-align: center;
+            color: #808080;
+            padding: 40px;
+            font-style: italic;
+        }
     </style>
 </head>
 <body>
@@ -532,23 +683,12 @@
         <div class="main-grid">
             <div class="panel">
                 <h2>📈 Current Market Orders</h2>
-                <div style="overflow-x: auto;">
-                    <table class="market-table">
-                        <thead>
-                            <tr>
-                                <th>Item Name</th>
-                                <th>Tier</th>
-                                <th>Sell Orders</th>
-                                <th>Buy Orders</th>
-                                <th>Total Orders</th>
-                            </tr>
-                        </thead>
-                        <tbody id="marketTableBody">
-                            <tr>
-                                <td colspan="5" class="loading">Loading market data...</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                <div class="view-toggle">
+                    <button id="viewByClaimBtn" class="active" onclick="setViewMode('claim')">By Claim</button>
+                    <button id="viewByItemBtn" onclick="setViewMode('item')">By Item</button>
+                </div>
+                <div class="orders-container" id="ordersContainer">
+                    <div class="loading">Loading market data...</div>
                 </div>
             </div>
 
@@ -582,6 +722,8 @@
         let allClaims = new Map(); // Map of claimName -> { claimEntityId, orderCount }
         let selectedClaim = null; // Currently selected claim filter
         let lastChangesData = null; // Store changes data for filtering
+        let viewMode = 'claim'; // 'claim' or 'item'
+        let claimOrdersMap = new Map(); // Map of claimName -> { orders: [], sellCount, buyCount }
 
         // ==========================================
         // INITIALIZATION
@@ -675,69 +817,211 @@
         // UI UPDATES
         // ==========================================
         function updateMarketTable(data) {
-            const tbody = document.getElementById('marketTableBody');
+            const container = document.getElementById('ordersContainer');
 
-            if (!data.currentState || !data.currentState.items || data.currentState.items.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No items with orders found. Market monitoring will start on next update cycle.</td></tr>';
+            // Build claim orders map from changes data
+            buildClaimOrdersMap();
+
+            if (viewMode === 'claim') {
+                renderClaimView(container);
+            } else {
+                renderItemView(container, data);
+            }
+        }
+
+        function buildClaimOrdersMap() {
+            claimOrdersMap.clear();
+
+            if (!lastChangesData || !lastChangesData.changes) return;
+
+            // Get the latest order details for each item
+            const latestOrderDetails = new Map();
+            lastChangesData.changes.forEach(entry => {
+                entry.changes.forEach(change => {
+                    if (change.orderDetails) {
+                        latestOrderDetails.set(change.itemId, {
+                            itemId: change.itemId,
+                            itemName: change.itemName,
+                            orderDetails: change.orderDetails
+                        });
+                    }
+                });
+            });
+
+            // Group orders by claim
+            latestOrderDetails.forEach(({ itemId, itemName, orderDetails }) => {
+                // Process sell orders
+                (orderDetails.sellOrders || []).forEach(order => {
+                    const claimName = order.claimName || 'Unknown Claim';
+                    if (!claimOrdersMap.has(claimName)) {
+                        claimOrdersMap.set(claimName, { orders: [], sellCount: 0, buyCount: 0 });
+                    }
+                    const claimData = claimOrdersMap.get(claimName);
+                    claimData.orders.push({
+                        type: 'sell',
+                        itemId,
+                        itemName,
+                        quantity: order.quantity,
+                        price: order.priceThreshold,
+                        ownerName: order.ownerName
+                    });
+                    claimData.sellCount++;
+                });
+
+                // Process buy orders
+                (orderDetails.buyOrders || []).forEach(order => {
+                    const claimName = order.claimName || 'Unknown Claim';
+                    if (!claimOrdersMap.has(claimName)) {
+                        claimOrdersMap.set(claimName, { orders: [], sellCount: 0, buyCount: 0 });
+                    }
+                    const claimData = claimOrdersMap.get(claimName);
+                    claimData.orders.push({
+                        type: 'buy',
+                        itemId,
+                        itemName,
+                        quantity: order.quantity,
+                        price: order.priceThreshold,
+                        ownerName: order.ownerName
+                    });
+                    claimData.buyCount++;
+                });
+            });
+        }
+
+        function renderClaimView(container) {
+            // Filter by selected claim if applicable
+            let claimsToRender = Array.from(claimOrdersMap.entries());
+
+            if (selectedClaim) {
+                claimsToRender = claimsToRender.filter(([name]) => name === selectedClaim);
+            }
+
+            // Sort by total orders descending
+            claimsToRender.sort((a, b) => b[1].orders.length - a[1].orders.length);
+
+            if (claimsToRender.length === 0) {
+                container.innerHTML = '<div class="no-orders-message">No orders found. Orders will appear here when the monitor detects market activity.</div>';
                 return;
             }
 
-            const items = data.currentState.items;
-
-            // Sort by total orders descending
-            items.sort((a, b) => b.totalOrders - a.totalOrders);
-
-            // Build table rows
-            const rows = items.map(item => {
-                const prevItem = previousItems.get(item.id);
-                let sellOrdersHtml = item.sellOrders;
-                let buyOrdersHtml = item.buyOrders;
-                let totalOrdersHtml = item.totalOrders;
-
-                // Add change indicators
-                if (prevItem) {
-                    if (item.sellOrders > prevItem.sellOrders) {
-                        sellOrdersHtml += ` <span class="change-indicator positive">+${item.sellOrders - prevItem.sellOrders}</span>`;
-                    } else if (item.sellOrders < prevItem.sellOrders) {
-                        sellOrdersHtml += ` <span class="change-indicator negative">${item.sellOrders - prevItem.sellOrders}</span>`;
-                    }
-
-                    if (item.buyOrders > prevItem.buyOrders) {
-                        buyOrdersHtml += ` <span class="change-indicator positive">+${item.buyOrders - prevItem.buyOrders}</span>`;
-                    } else if (item.buyOrders < prevItem.buyOrders) {
-                        buyOrdersHtml += ` <span class="change-indicator negative">${item.buyOrders - prevItem.buyOrders}</span>`;
-                    }
-
-                    if (item.totalOrders > prevItem.totalOrders) {
-                        totalOrdersHtml += ` <span class="change-indicator positive">+${item.totalOrders - prevItem.totalOrders}</span>`;
-                    } else if (item.totalOrders < prevItem.totalOrders) {
-                        totalOrdersHtml += ` <span class="change-indicator negative">${item.totalOrders - prevItem.totalOrders}</span>`;
-                    }
-                } else if (previousItems.size > 0) {
-                    // New item
-                    totalOrdersHtml += ` <span class="change-indicator new">NEW</span>`;
-                }
-
-                const rowClass = (prevItem && (item.sellOrders !== prevItem.sellOrders || item.buyOrders !== prevItem.buyOrders)) ? 'highlighted' : '';
+            const html = claimsToRender.map(([claimName, claimData]) => {
+                const ordersHtml = claimData.orders
+                    .sort((a, b) => a.itemName.localeCompare(b.itemName))
+                    .map(order => `
+                        <div class="order-row">
+                            <span class="order-type ${order.type}">${order.type.toUpperCase()}</span>
+                            <span class="order-item-name">
+                                <a href="https://bitjita.com/market/item/${order.itemId}" target="_blank">${escapeHtml(order.itemName)}</a>
+                            </span>
+                            <span class="order-qty">Qty: ${order.quantity.toLocaleString()}</span>
+                            <span class="order-price">${order.price.toLocaleString()} g</span>
+                        </div>
+                    `).join('');
 
                 return `
-                    <tr class="${rowClass}" onclick="viewItemDetails('${item.id}', '${escapeHtml(item.name)}')">
-                        <td><a href="https://bitjita.com/market/item/${item.id}" target="_blank" style="color: #4a9eff; text-decoration: none;">${escapeHtml(item.name)}</a></td>
-                        <td>${item.tier}</td>
-                        <td>${sellOrdersHtml}</td>
-                        <td>${buyOrdersHtml}</td>
-                        <td>${totalOrdersHtml}</td>
-                    </tr>
+                    <div class="claim-section">
+                        <div class="claim-header" onclick="toggleClaimSection(this)">
+                            <span class="claim-name">${escapeHtml(claimName)}</span>
+                            <span class="claim-stats">
+                                <span class="sell-count">${claimData.sellCount} sell</span>
+                                <span class="buy-count">${claimData.buyCount} buy</span>
+                            </span>
+                        </div>
+                        <div class="claim-orders">
+                            ${ordersHtml}
+                        </div>
+                    </div>
                 `;
             }).join('');
 
-            tbody.innerHTML = rows;
+            container.innerHTML = html;
+        }
+
+        function renderItemView(container, data) {
+            if (!data.currentState || !data.currentState.items || data.currentState.items.length === 0) {
+                container.innerHTML = '<div class="no-orders-message">No items with orders found. Market monitoring will start on next update cycle.</div>';
+                return;
+            }
+
+            const items = [...data.currentState.items];
+            items.sort((a, b) => b.totalOrders - a.totalOrders);
+
+            const tableHtml = `
+                <table class="market-table">
+                    <thead>
+                        <tr>
+                            <th>Item Name</th>
+                            <th>Tier</th>
+                            <th>Sell Orders</th>
+                            <th>Buy Orders</th>
+                            <th>Total Orders</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${items.map(item => {
+                            const prevItem = previousItems.get(item.id);
+                            let sellOrdersHtml = item.sellOrders;
+                            let buyOrdersHtml = item.buyOrders;
+                            let totalOrdersHtml = item.totalOrders;
+
+                            if (prevItem) {
+                                if (item.sellOrders > prevItem.sellOrders) {
+                                    sellOrdersHtml += ` <span class="change-indicator positive">+${item.sellOrders - prevItem.sellOrders}</span>`;
+                                } else if (item.sellOrders < prevItem.sellOrders) {
+                                    sellOrdersHtml += ` <span class="change-indicator negative">${item.sellOrders - prevItem.sellOrders}</span>`;
+                                }
+                                if (item.buyOrders > prevItem.buyOrders) {
+                                    buyOrdersHtml += ` <span class="change-indicator positive">+${item.buyOrders - prevItem.buyOrders}</span>`;
+                                } else if (item.buyOrders < prevItem.buyOrders) {
+                                    buyOrdersHtml += ` <span class="change-indicator negative">${item.buyOrders - prevItem.buyOrders}</span>`;
+                                }
+                                if (item.totalOrders > prevItem.totalOrders) {
+                                    totalOrdersHtml += ` <span class="change-indicator positive">+${item.totalOrders - prevItem.totalOrders}</span>`;
+                                } else if (item.totalOrders < prevItem.totalOrders) {
+                                    totalOrdersHtml += ` <span class="change-indicator negative">${item.totalOrders - prevItem.totalOrders}</span>`;
+                                }
+                            } else if (previousItems.size > 0) {
+                                totalOrdersHtml += ` <span class="change-indicator new">NEW</span>`;
+                            }
+
+                            const rowClass = (prevItem && (item.sellOrders !== prevItem.sellOrders || item.buyOrders !== prevItem.buyOrders)) ? 'highlighted' : '';
+
+                            return `
+                                <tr class="${rowClass}" onclick="viewItemDetails('${item.id}', '${escapeHtml(item.name)}')">
+                                    <td><a href="https://bitjita.com/market/item/${item.id}" target="_blank" style="color: #4a9eff; text-decoration: none;">${escapeHtml(item.name)}</a></td>
+                                    <td>${item.tier}</td>
+                                    <td>${sellOrdersHtml}</td>
+                                    <td>${buyOrdersHtml}</td>
+                                    <td>${totalOrdersHtml}</td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            `;
+
+            container.innerHTML = tableHtml;
 
             // Update previous items map
             previousItems.clear();
             items.forEach(item => {
                 previousItems.set(item.id, { ...item });
             });
+        }
+
+        function setViewMode(mode) {
+            viewMode = mode;
+            document.getElementById('viewByClaimBtn').classList.toggle('active', mode === 'claim');
+            document.getElementById('viewByItemBtn').classList.toggle('active', mode === 'item');
+
+            if (currentState) {
+                updateMarketTable({ currentState });
+            }
+        }
+
+        function toggleClaimSection(header) {
+            const orders = header.nextElementSibling;
+            orders.classList.toggle('collapsed');
         }
 
         function updateChangeLog(data) {
