@@ -682,6 +682,16 @@
                 bottom: 15px;
             }
         }
+
+        .cargo-label {
+            background-color: #fb923c;
+            color: #1a1a1a;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-right: 6px;
+        }
     </style>
 </head>
 <body>
@@ -895,6 +905,7 @@
 
         const CATEGORIES = [
             'Blacksmith Tool',
+            'Cargo',
             'Carpenter Tool',
             'Cloth Clothing',
             'Farmer Tool',
@@ -913,17 +924,38 @@
 
         const RARITIES = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary'];
 
-        // Load items.json on startup
+        // Load items.json and cargo.json on startup
         async function loadItems() {
             try {
-                const response = await fetch('items.json');
-                const data = await response.json();
-                allItems = data.items || [];
+                // Load regular items
+                const itemsResponse = await fetch('items.json');
+                const itemsData = await itemsResponse.json();
+                const items = (itemsData.items || []).map(item => ({
+                    ...item,
+                    itemType: 'item'
+                }));
+
+                // Load cargo items
+                let cargo = [];
+                try {
+                    const cargoResponse = await fetch('cargo.json');
+                    const cargoData = await cargoResponse.json();
+                    cargo = (cargoData.cargos || []).map(cargoItem => ({
+                        ...cargoItem,
+                        itemType: 'cargo',
+                        tag: 'Cargo' // Ensure cargo items have tag='Cargo' for filtering
+                    }));
+                } catch (cargoError) {
+                    console.warn('cargo.json not found or failed to load:', cargoError.message);
+                }
+
+                // Merge items and cargo
+                allItems = [...items, ...cargo];
 
                 populateDropdowns();
                 setupEventListeners();
 
-                console.log(`Loaded ${allItems.length} items`);
+                console.log(`Loaded ${items.length} items and ${cargo.length} cargo`);
             } catch (error) {
                 showError('Failed to load items.json: ' + error.message);
             }
@@ -943,7 +975,7 @@
             // Populate tiers
             const tierSet = new Set();
             allItems.forEach(item => {
-                if (item.compendiumEntry === true && CATEGORIES.includes(item.tag)) {
+                if ((item.compendiumEntry === true || item.itemType === 'cargo') && CATEGORIES.includes(item.tag)) {
                     tierSet.add(item.tier);
                 }
             });
@@ -1030,7 +1062,8 @@
 
         // Filter items based on category, tier, and rarity
         function filterItems(selectedCategories, selectedTiers, selectedRarities) {
-            let filtered = allItems.filter(item => item.compendiumEntry === true);
+            // Include cargo even if compendiumEntry is false
+            let filtered = allItems.filter(item => item.compendiumEntry === true || item.itemType === 'cargo');
 
             // Filter by category (multiple selection)
             if (selectedCategories.length > 0) {
@@ -1072,21 +1105,23 @@
                 if (allRegionsChecked) {
                     // Use bulk endpoint for all regions (batched in groups of 100)
                     const BULK_BATCH_SIZE = 100;
-                    const itemIds = items.map(item => parseInt(item.id));
                     const mergedBulkData = { data: { items: {} } };
 
                     // Split into batches of 100 (API limit)
-                    for (let i = 0; i < itemIds.length; i += BULK_BATCH_SIZE) {
+                    for (let i = 0; i < items.length; i += BULK_BATCH_SIZE) {
                         if (signal.aborted) {
                             console.log('Request cancelled by user');
                             return;
                         }
 
-                        const batchIds = itemIds.slice(i, i + BULK_BATCH_SIZE);
-                        const batchNum = Math.floor(i / BULK_BATCH_SIZE) + 1;
-                        const totalBatches = Math.ceil(itemIds.length / BULK_BATCH_SIZE);
+                        const batch = items.slice(i, i + BULK_BATCH_SIZE);
+                        const batchItemIds = batch.filter(item => item.itemType !== 'cargo').map(item => parseInt(item.id));
+                        const batchCargoIds = batch.filter(item => item.itemType === 'cargo').map(item => parseInt(item.id));
 
-                        updateLoadingDetails(`Fetching batch ${batchNum}/${totalBatches} (${batchIds.length} items)...`);
+                        const batchNum = Math.floor(i / BULK_BATCH_SIZE) + 1;
+                        const totalBatches = Math.ceil(items.length / BULK_BATCH_SIZE);
+
+                        updateLoadingDetails(`Fetching batch ${batchNum}/${totalBatches} (${batch.length} items)...`);
 
                         const bulkApiUrl = `${API_BASE_URL}/api/market/prices/bulk`;
                         const response = await fetch(bulkApiUrl, {
@@ -1095,8 +1130,8 @@
                                 'Content-Type': 'application/json'
                             },
                             body: JSON.stringify({
-                                itemIds: batchIds,
-                                cargoIds: []
+                                itemIds: batchItemIds,
+                                cargoIds: batchCargoIds
                             }),
                             signal: signal
                         });
@@ -1244,6 +1279,7 @@
                         itemId: item.id,
                         tier: item.tier,
                         category: item.tag,
+                        isCargo: item.itemType === 'cargo',
                         common: null,
                         commonItemId: null,
                         uncommon: null,
@@ -1287,6 +1323,7 @@
                         itemId: item.id,
                         tier: item.tier,
                         category: item.tag,
+                        isCargo: item.itemType === 'cargo',
                         common: null,
                         commonItemId: null,
                         commonClaim: null,
@@ -1349,7 +1386,7 @@
 
             resultsBody.innerHTML = data.map(row => `
                 <tr>
-                    <td><a href="https://bitjita.com/market/item/${row.itemId}" target="_blank" class="item-link">${row.itemName}</a></td>
+                    <td><a href="https://bitjita.com/market/item/${row.itemId}" target="_blank" class="item-link">${row.isCargo ? '<span class="cargo-label">[Cargo]</span>' : ''}${row.itemName}</a></td>
                     <td>${row.tier}</td>
                     <td class="${row.common !== null ? 'price-cell' : 'price-na'}">
                         ${row.common !== null && row.commonItemId

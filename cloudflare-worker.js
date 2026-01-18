@@ -452,13 +452,15 @@ export default {
       const missingDetailIds = allItemIds.filter(id => !orderDetails[id] && !orderDetails[String(id)]);
 
       // Prioritize changed items, then fill with missing items
-      const itemsToFetch = [
+      const itemIdsToFetch = [
         ...changedItemIds.slice(0, MAX_ITEMS_PER_RUN),
         ...missingDetailIds.slice(0, Math.max(0, MAX_ITEMS_PER_RUN - changedItemIds.length))
       ].slice(0, MAX_ITEMS_PER_RUN);
 
-      if (itemsToFetch.length > 0) {
-        console.log(`Fetching order details for ${itemsToFetch.length} items (${changedItemIds.length} changed, ${missingDetailIds.length} missing)`);
+      if (itemIdsToFetch.length > 0) {
+        console.log(`Fetching order details for ${itemIdsToFetch.length} items (${changedItemIds.length} changed, ${missingDetailIds.length} missing)`);
+        // Get full item objects with itemType for the fetch
+        const itemsToFetch = marketData.items.filter(item => itemIdsToFetch.includes(item.id));
         const fetchedOrderDetails = await fetchOrdersForItems(itemsToFetch);
         // Merge fetched items into full order details
         orderDetails = { ...orderDetails, ...fetchedOrderDetails };
@@ -530,13 +532,15 @@ async function handleManualTrigger(env) {
     const missingDetailIds = allItemIds.filter(id => !orderDetails[id] && !orderDetails[String(id)]);
 
     // Prioritize changed items, then fill with missing items
-    const itemsToFetch = [
+    const itemIdsToFetch = [
       ...changedItemIds.slice(0, MAX_ITEMS_PER_RUN),
       ...missingDetailIds.slice(0, Math.max(0, MAX_ITEMS_PER_RUN - changedItemIds.length))
     ].slice(0, MAX_ITEMS_PER_RUN);
 
-    if (itemsToFetch.length > 0) {
-      console.log(`Fetching order details for ${itemsToFetch.length} items (${changedItemIds.length} changed, ${missingDetailIds.length} missing)`);
+    if (itemIdsToFetch.length > 0) {
+      console.log(`Fetching order details for ${itemIdsToFetch.length} items (${changedItemIds.length} changed, ${missingDetailIds.length} missing)`);
+      // Get full item objects with itemType for the fetch
+      const itemsToFetch = marketData.items.filter(item => itemIdsToFetch.includes(item.id));
       const fetchedOrderDetails = await fetchOrdersForItems(itemsToFetch);
       // Merge fetched items into full order details
       orderDetails = { ...orderDetails, ...fetchedOrderDetails };
@@ -734,15 +738,19 @@ async function fetchMarketData() {
 }
 
 /**
- * Fetch full order details for a specific item
+ * Fetch full order details for a specific item or cargo
+ * @param {number} itemId - The item/cargo ID
+ * @param {number} itemType - The item type (1 for cargo, other values for regular items)
  */
-async function fetchItemOrders(itemId) {
-  const apiUrl = `${TARGET_API}/api/market/item/${itemId}`;
+async function fetchItemOrders(itemId, itemType = 0) {
+  // Use cargo endpoint if itemType is 1, otherwise use item endpoint
+  const endpoint = itemType === 1 ? 'cargo' : 'item';
+  const apiUrl = `${TARGET_API}/api/market/${endpoint}/${itemId}`;
 
   const response = await fetch(apiUrl);
 
   if (!response.ok) {
-    console.error(`Failed to fetch orders for item ${itemId}: ${response.status}`);
+    console.error(`Failed to fetch orders for ${endpoint} ${itemId}: ${response.status}`);
     return null;
   }
 
@@ -762,21 +770,20 @@ async function fetchItemOrders(itemId) {
 
 /**
  * Fetch order details for multiple items (with rate limiting)
- * @param {number[]} itemIds - All item IDs that currently have orders
- * @param {Object} previousOrderDetails - Previous order details to merge with
+ * @param {Array} items - Array of item objects with id and itemType properties
  */
-async function fetchOrdersForItems(itemIds) {
+async function fetchOrdersForItems(items) {
   const results = {};
 
-  console.log(`Need to fetch ${itemIds.length} items`);
+  console.log(`Need to fetch ${items.length} items`);
 
   // Fetch in batches of 40 to stay under Cloudflare's 50 subrequest limit
   const batchSize = 40;
   const delayBetweenBatches = 100; // ms
 
-  for (let i = 0; i < itemIds.length; i += batchSize) {
-    const batch = itemIds.slice(i, i + batchSize);
-    const promises = batch.map(id => fetchItemOrders(id));
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    const promises = batch.map(item => fetchItemOrders(item.id, item.itemType));
     const batchResults = await Promise.all(promises);
 
     batchResults.forEach(result => {
@@ -786,12 +793,12 @@ async function fetchOrdersForItems(itemIds) {
     });
 
     // Log progress every 50 items
-    if (itemIds.length > 20 && (i + batchSize) % 50 === 0) {
-      console.log(`Fetched ${Math.min(i + batchSize, itemIds.length)}/${itemIds.length} items`);
+    if (items.length > 20 && (i + batchSize) % 50 === 0) {
+      console.log(`Fetched ${Math.min(i + batchSize, items.length)}/${items.length} items`);
     }
 
     // Delay between batches to stay under rate limit
-    if (i + batchSize < itemIds.length) {
+    if (i + batchSize < items.length) {
       await new Promise(resolve => setTimeout(resolve, delayBetweenBatches));
     }
   }
