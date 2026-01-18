@@ -112,6 +112,16 @@
             font-weight: 500;
         }
 
+        .cargo-label {
+            background-color: #fb923c;
+            color: #1a1a1a;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-right: 6px;
+        }
+
         .rarity-default { color: #9ca3af; }
         .rarity-common { color: #9ca3af; }
         .rarity-uncommon { color: #4ade80; }
@@ -986,17 +996,37 @@
         let allItems = [];
         let currentItemId = null;
 
-        // Load items.json on startup
+        // Load items.json and cargo.json on startup
         async function loadItems() {
             try {
-                const response = await fetch('items.json');
-                const data = await response.json();
-                allItems = data.items || [];
+                // Load regular items
+                const itemsResponse = await fetch('items.json');
+                const itemsData = await itemsResponse.json();
+                const items = (itemsData.items || []).map(item => ({
+                    ...item,
+                    itemType: 'item' // Mark as regular item
+                }));
+
+                // Load cargo items
+                let cargo = [];
+                try {
+                    const cargoResponse = await fetch('cargo.json');
+                    const cargoData = await cargoResponse.json();
+                    cargo = (cargoData.cargo || []).map(cargoItem => ({
+                        ...cargoItem,
+                        itemType: 'cargo' // Mark as cargo
+                    }));
+                } catch (cargoError) {
+                    console.warn('cargo.json not found or failed to load:', cargoError.message);
+                }
+
+                // Merge items and cargo
+                allItems = [...items, ...cargo];
 
                 // Populate tier dropdown
                 populateTierDropdown();
 
-                console.log(`Loaded ${allItems.length} items`);
+                console.log(`Loaded ${items.length} items and ${cargo.length} cargo`);
             } catch (error) {
                 showError('Failed to load items.json: ' + error.message);
             }
@@ -1084,9 +1114,11 @@
                 typeaheadResults.innerHTML = filteredItems.map(item => {
                     const rarity = item.rarityStr || 'Common';
                     const rarityClass = rarity.toLowerCase();
+                    const isCargo = item.itemType === 'cargo';
+                    const cargoLabel = isCargo ? '<span class="cargo-label">[Cargo]</span> ' : '';
                     return `
-                    <div class="typeahead-item" data-item-id="${item.id}">
-                        <span class="typeahead-item-name">${item.name}</span>
+                    <div class="typeahead-item" data-item-id="${item.id}" data-item-type="${item.itemType}">
+                        <span class="typeahead-item-name">${cargoLabel}${item.name}</span>
                         <span class="typeahead-item-tier">Tier ${item.tier}</span>
                         <span class="typeahead-item-rarity rarity-${rarityClass}">${rarity}</span>
                     </div>
@@ -1098,10 +1130,11 @@
                 typeaheadResults.querySelectorAll('.typeahead-item').forEach(el => {
                     el.addEventListener('click', function() {
                         const itemId = this.dataset.itemId;
+                        const itemType = this.dataset.itemType;
                         const itemName = this.querySelector('.typeahead-item-name').textContent;
                         searchInput.value = itemName;
                         typeaheadResults.style.display = 'none';
-                        fetchMarketData(itemId);
+                        fetchMarketData(itemId, itemType);
                     });
                 });
             } else {
@@ -1145,7 +1178,7 @@
         });
 
         // Fetch market data from API
-        async function fetchMarketData(itemId) {
+        async function fetchMarketData(itemId, itemType = 'item') {
             currentItemId = itemId;
 
             // Show loading state
@@ -1157,7 +1190,9 @@
             document.getElementById('sellOrdersList').innerHTML = '<div class="loading">Loading...</div>';
 
             try {
-                const apiUrl = `${API_BASE_URL}/api/market/item/${itemId}`;
+                // Use different endpoint for cargo vs items
+                const endpoint = itemType === 'cargo' ? 'cargo' : 'item';
+                const apiUrl = `${API_BASE_URL}/api/market/${endpoint}/${itemId}`;
                 const response = await fetch(apiUrl);
 
                 if (!response.ok) {
@@ -1402,12 +1437,23 @@
                 // Use fast bulk endpoint for all regions (batched in groups of 100)
                 try {
                     const BULK_BATCH_SIZE = 100;
-                    const itemIds = filteredItems.map(item => parseInt(item.id));
+                    // Separate items and cargo
+                    const itemIds = filteredItems
+                        .filter(item => item.itemType !== 'cargo')
+                        .map(item => parseInt(item.id));
+                    const cargoIds = filteredItems
+                        .filter(item => item.itemType === 'cargo')
+                        .map(item => parseInt(item.id));
                     const mergedBulkData = { data: { items: {} } };
 
+                    // Combine both arrays for batching (API returns both in same structure)
+                    const allIds = [...itemIds, ...cargoIds];
+
                     // Split into batches of 100 (API limit)
-                    for (let i = 0; i < itemIds.length; i += BULK_BATCH_SIZE) {
-                        const batchIds = itemIds.slice(i, i + BULK_BATCH_SIZE);
+                    for (let i = 0; i < allIds.length; i += BULK_BATCH_SIZE) {
+                        const batch = filteredItems.slice(i, i + BULK_BATCH_SIZE);
+                        const batchItemIds = batch.filter(item => item.itemType !== 'cargo').map(item => parseInt(item.id));
+                        const batchCargoIds = batch.filter(item => item.itemType === 'cargo').map(item => parseInt(item.id));
 
                         const bulkApiUrl = `${API_BASE_URL}/api/market/prices/bulk`;
                         const response = await fetch(bulkApiUrl, {
@@ -1416,8 +1462,8 @@
                                 'Content-Type': 'application/json'
                             },
                             body: JSON.stringify({
-                                itemIds: batchIds,
-                                cargoIds: []
+                                itemIds: batchItemIds,
+                                cargoIds: batchCargoIds
                             })
                         });
 

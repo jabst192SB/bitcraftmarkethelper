@@ -1,0 +1,15 @@
+{
+  "cargo": [
+    {
+      "id": "1",
+      "name": "Example Cargo Item",
+      "description": "An example cargo item for testing",
+      "volume": 1000,
+      "tier": 1,
+      "tag": "Cargo",
+      "rarity": 1,
+      "rarityStr": "Common",
+      "compendiumEntry": true
+    }
+  ]
+}
