@@ -722,6 +722,7 @@
         let allClaims = new Map(); // Map of claimName -> { claimEntityId, orderCount }
         let selectedClaim = null; // Currently selected claim filter
         let lastChangesData = null; // Store changes data for filtering
+        let currentOrderDetails = {}; // Current order details from state endpoint
         let viewMode = 'claim'; // 'claim' or 'item'
         let claimOrdersMap = new Map(); // Map of claimName -> { orders: [], sellCount, buyCount }
 
@@ -790,9 +791,10 @@
 
                 // Store for filtering and extract claims
                 currentState = stateData.currentState;
+                currentOrderDetails = stateData.orderDetails || {};
                 lastChangesData = changesData;
-                extractClaimsFromChanges(changesData);
-                countClaimOrders(changesData);
+                extractClaimsFromOrderDetails(currentOrderDetails);
+                countClaimOrdersFromDetails(currentOrderDetails);
 
                 // Update UI
                 updateMarketTable(stateData);
@@ -832,24 +834,21 @@
         function buildClaimOrdersMap() {
             claimOrdersMap.clear();
 
-            if (!lastChangesData || !lastChangesData.changes) return;
+            // Use current order details from state endpoint
+            if (!currentOrderDetails || Object.keys(currentOrderDetails).length === 0) return;
 
-            // Get the latest order details for each item
-            const latestOrderDetails = new Map();
-            lastChangesData.changes.forEach(entry => {
-                entry.changes.forEach(change => {
-                    if (change.orderDetails) {
-                        latestOrderDetails.set(change.itemId, {
-                            itemId: change.itemId,
-                            itemName: change.itemName,
-                            orderDetails: change.orderDetails
-                        });
-                    }
+            // Get item names from current state
+            const itemNames = new Map();
+            if (currentState && currentState.items) {
+                currentState.items.forEach(item => {
+                    itemNames.set(item.id, item.name);
                 });
-            });
+            }
 
             // Group orders by claim
-            latestOrderDetails.forEach(({ itemId, itemName, orderDetails }) => {
+            Object.entries(currentOrderDetails).forEach(([itemId, orderDetails]) => {
+                const itemName = itemNames.get(parseInt(itemId)) || itemNames.get(itemId) || `Item ${itemId}`;
+
                 // Process sell orders
                 (orderDetails.sellOrders || []).forEach(order => {
                     const claimName = order.claimName || 'Unknown Claim';
@@ -1330,81 +1329,36 @@
             document.getElementById('claimFilterInput').focus();
         }
 
-        function extractClaimsFromChanges(changesData) {
-            // Extract unique claims from change history order details
-            if (!changesData || !changesData.changes) return;
+        function extractClaimsFromOrderDetails(orderDetails) {
+            // Extract unique claims from current order details
+            if (!orderDetails || Object.keys(orderDetails).length === 0) return;
 
-            changesData.changes.forEach(entry => {
-                entry.changes.forEach(change => {
-                    if (change.orderDetails) {
-                        // Extract from current orders
-                        [...(change.orderDetails.sellOrders || []), ...(change.orderDetails.buyOrders || [])].forEach(order => {
-                            if (order.claimName) {
-                                const existing = allClaims.get(order.claimName);
-                                if (!existing) {
-                                    allClaims.set(order.claimName, {
-                                        claimEntityId: order.claimEntityId,
-                                        orderCount: 1
-                                    });
-                                }
-                            }
-                        });
-                    }
-
-                    // Extract from added/removed orders
-                    if (change.addedOrders) {
-                        [...(change.addedOrders.sellOrders || []), ...(change.addedOrders.buyOrders || [])].forEach(order => {
-                            if (order.claimName) {
-                                const existing = allClaims.get(order.claimName);
-                                if (!existing) {
-                                    allClaims.set(order.claimName, {
-                                        claimEntityId: order.claimEntityId,
-                                        orderCount: 1
-                                    });
-                                }
-                            }
-                        });
-                    }
-
-                    if (change.removedOrders) {
-                        [...(change.removedOrders.sellOrders || []), ...(change.removedOrders.buyOrders || [])].forEach(order => {
-                            if (order.claimName) {
-                                const existing = allClaims.get(order.claimName);
-                                if (!existing) {
-                                    allClaims.set(order.claimName, {
-                                        claimEntityId: order.claimEntityId,
-                                        orderCount: 1
-                                    });
-                                }
-                            }
-                        });
+            Object.values(orderDetails).forEach(details => {
+                [...(details.sellOrders || []), ...(details.buyOrders || [])].forEach(order => {
+                    if (order.claimName) {
+                        const existing = allClaims.get(order.claimName);
+                        if (!existing) {
+                            allClaims.set(order.claimName, {
+                                claimEntityId: order.claimEntityId,
+                                orderCount: 0
+                            });
+                        }
                     }
                 });
             });
         }
 
-        function countClaimOrders(changesData) {
+        function countClaimOrdersFromDetails(orderDetails) {
             // Reset counts
             allClaims.forEach((data, name) => {
                 data.orderCount = 0;
             });
 
-            // Count orders per claim from the most recent change entries with order details
-            if (!changesData || !changesData.changes) return;
-
-            // Get unique items with their latest order details
-            const latestOrderDetails = new Map();
-            changesData.changes.forEach(entry => {
-                entry.changes.forEach(change => {
-                    if (change.orderDetails) {
-                        latestOrderDetails.set(change.itemId, change.orderDetails);
-                    }
-                });
-            });
+            if (!orderDetails || Object.keys(orderDetails).length === 0) return;
 
             // Count orders per claim
-            latestOrderDetails.forEach((orderDetails, itemId) => {
-                [...(orderDetails.sellOrders || []), ...(orderDetails.buyOrders || [])].forEach(order => {
+            Object.values(orderDetails).forEach(details => {
+                [...(details.sellOrders || []), ...(details.buyOrders || [])].forEach(order => {
                     if (order.claimName) {
                         const claim = allClaims.get(order.claimName);
                         if (claim) {

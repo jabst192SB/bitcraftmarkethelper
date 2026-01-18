@@ -51,11 +51,13 @@ export class MarketMonitor {
    */
   async getState() {
     const currentState = await this.state.storage.get('currentState');
+    const orderDetails = await this.state.storage.get('orderDetails') || {};
     const lastUpdate = await this.state.storage.get('lastUpdate');
     const changeCount = await this.state.storage.get('changeCount') || 0;
 
     return new Response(JSON.stringify({
       currentState: currentState || null,
+      orderDetails: orderDetails,
       lastUpdate: lastUpdate || null,
       changeCount: changeCount,
       timestamp: Date.now()
@@ -404,29 +406,45 @@ export default {
     console.log('Cron triggered at:', new Date(event.scheduledTime).toISOString());
 
     try {
-      // Fetch current market data
+      // Fetch current market data (list of items with orders)
       const marketData = await fetchMarketData();
+      console.log(`Found ${marketData.items.length} items with orders`);
 
       // Get Durable Object instance
       const id = env.MARKET_MONITOR.idFromName('global');
       const stub = env.MARKET_MONITOR.get(id);
 
-      // Get previous state to detect changes before updating
+      // Get previous state to detect changes
       const stateResponse = await stub.fetch(new Request('https://dummy/api/monitor/state'));
       const stateData = await stateResponse.json();
       const previousState = stateData.currentState;
+      const previousOrderDetails = stateData.orderDetails || {};
 
       // Detect which items have changes
       const changedItemIds = detectChangedItemIds(previousState, marketData);
       console.log(`Detected ${changedItemIds.length} changed items`);
 
-      // Fetch order details for changed items
-      let orderDetails = {};
-      if (changedItemIds.length > 0) {
-        console.log('Fetching order details for changed items:', changedItemIds);
-        orderDetails = await fetchOrdersForItems(changedItemIds);
-        console.log(`Fetched order details for ${Object.keys(orderDetails).length} items`);
+      // Build order details: keep previous data, fetch only changed items
+      const allItemIds = marketData.items.map(item => item.id);
+      let orderDetails = { ...previousOrderDetails };
+
+      // Remove items that no longer have orders
+      for (const key of Object.keys(orderDetails)) {
+        if (!allItemIds.includes(parseInt(key))) {
+          delete orderDetails[key];
+        }
       }
+
+      // Fetch order details only for CHANGED items (much faster!)
+      if (changedItemIds.length > 0) {
+        console.log(`Fetching order details for ${changedItemIds.length} changed items`);
+        const changedOrderDetails = await fetchOrdersForItems(changedItemIds);
+        // Merge changed items into full order details
+        orderDetails = { ...orderDetails, ...changedOrderDetails };
+        console.log(`Updated order details for ${Object.keys(changedOrderDetails).length} items`);
+      }
+
+      console.log(`Total order details: ${Object.keys(orderDetails).length} items`);
 
       // Update state with market data and order details
       const response = await stub.fetch(new Request('https://dummy/api/monitor/update', {
@@ -624,12 +642,26 @@ async function fetchItemOrders(itemId) {
 
 /**
  * Fetch order details for multiple items (with rate limiting)
+ * @param {number[]} itemIds - All item IDs that currently have orders
+ * @param {Object} previousOrderDetails - Previous order details to merge with
  */
-async function fetchOrdersForItems(itemIds) {
-  const results = {};
+async function fetchOrdersForItems(itemIds, previousOrderDetails = {}) {
+  // Start with previous order details and update with fresh data
+  const results = { ...previousOrderDetails };
 
-  // Fetch in batches of 5 to avoid rate limiting (250 req/min limit)
-  const batchSize = 5;
+  // Remove items that no longer have orders
+  for (const key of Object.keys(results)) {
+    if (!itemIds.includes(parseInt(key))) {
+      delete results[key];
+    }
+  }
+
+  console.log(`Need to fetch ${itemIds.length} items`);
+
+  // Fetch in batches of 99 (API max is 100) with minimal delay
+  const batchSize = 99;
+  const delayBetweenBatches = 100; // ms
+
   for (let i = 0; i < itemIds.length; i += batchSize) {
     const batch = itemIds.slice(i, i + batchSize);
     const promises = batch.map(id => fetchItemOrders(id));
@@ -641,9 +673,14 @@ async function fetchOrdersForItems(itemIds) {
       }
     });
 
-    // Small delay between batches if there are more
+    // Log progress every 50 items
+    if (itemIds.length > 20 && (i + batchSize) % 50 === 0) {
+      console.log(`Fetched ${Math.min(i + batchSize, itemIds.length)}/${itemIds.length} items`);
+    }
+
+    // Delay between batches to stay under rate limit
     if (i + batchSize < itemIds.length) {
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, delayBetweenBatches));
     }
   }
 
