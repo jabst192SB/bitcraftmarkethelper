@@ -615,6 +615,9 @@
         .order-row .order-item-name {
             color: #e0e0e0;
             flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
         }
 
         .order-row .order-item-name a {
@@ -655,6 +658,79 @@
             font-weight: 500;
             min-width: 80px;
             text-align: right;
+        }
+
+        .order-row .order-metadata {
+            display: flex;
+            gap: 8px;
+            font-size: 11px;
+            color: #b0b0b0;
+            margin-left: 8px;
+        }
+
+        .order-row .metadata-badge {
+            padding: 2px 6px;
+            border-radius: 3px;
+            background-color: rgba(74, 74, 74, 0.3);
+            white-space: nowrap;
+        }
+
+        .order-row .metadata-badge.tier {
+            background-color: rgba(74, 158, 255, 0.15);
+            color: #4a9eff;
+        }
+
+        .order-row .metadata-badge.rarity {
+            background-color: rgba(167, 139, 250, 0.15);
+            color: #a78bfa;
+        }
+
+        .order-row .metadata-badge.category {
+            background-color: rgba(251, 191, 36, 0.15);
+            color: #fbbf24;
+        }
+
+        .item-filter-container {
+            margin-bottom: 15px;
+            position: relative;
+        }
+
+        .item-filter-input {
+            width: 100%;
+            padding: 10px 12px;
+            background-color: #3a3a3a;
+            border: 1px solid #4a4a4a;
+            border-radius: 4px;
+            color: #e0e0e0;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .item-filter-input:focus {
+            border-color: #4a9eff;
+        }
+
+        .item-filter-input::placeholder {
+            color: #808080;
+        }
+
+        .item-filter-clear {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: #808080;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 4px;
+            line-height: 1;
+        }
+
+        .item-filter-clear:hover {
+            color: #e0e0e0;
         }
 
         .view-toggle {
@@ -796,6 +872,15 @@
         <div class="main-grid">
             <div class="panel">
                 <h2>📈 Current Market Orders</h2>
+                <div class="item-filter-container">
+                    <input type="text"
+                           class="item-filter-input"
+                           id="itemFilterInput"
+                           placeholder="Filter by item name or category..."
+                           autocomplete="off"
+                           oninput="applyItemFilter()">
+                    <button class="item-filter-clear" id="itemFilterClear" onclick="clearItemFilter()" style="display: none;">✕</button>
+                </div>
                 <div class="view-toggle">
                     <button id="viewByClaimBtn" class="active" onclick="setViewMode('claim')">By Claim</button>
                     <button id="viewByItemBtn" onclick="setViewMode('item')">By Item</button>
@@ -994,17 +1079,27 @@
             // Use current order details from state endpoint
             if (!currentOrderDetails || Object.keys(currentOrderDetails).length === 0) return;
 
-            // Get item names from current state
-            const itemNames = new Map();
+            // Get item data from current state
+            const itemData = new Map();
             if (currentState && currentState.items) {
                 currentState.items.forEach(item => {
-                    itemNames.set(item.id, item.name);
+                    itemData.set(item.id, {
+                        name: item.name,
+                        tier: item.tier,
+                        rarity: item.rarityStr || item.rarity,
+                        category: item.tag || item.category || 'Unknown'
+                    });
                 });
             }
 
             // Group orders by claim, then by item+price
             Object.entries(currentOrderDetails).forEach(([itemId, orderDetails]) => {
-                const itemName = itemNames.get(parseInt(itemId)) || itemNames.get(itemId) || `Item ${itemId}`;
+                const item = itemData.get(parseInt(itemId)) || itemData.get(itemId) || {
+                    name: `Item ${itemId}`,
+                    tier: 0,
+                    rarity: 'Unknown',
+                    category: 'Unknown'
+                };
 
                 // Process sell orders
                 (orderDetails.sellOrders || []).forEach(order => {
@@ -1020,7 +1115,10 @@
                         claimData.orderGroups.set(orderKey, {
                             type: 'sell',
                             itemId,
-                            itemName,
+                            itemName: item.name,
+                            tier: item.tier,
+                            rarity: item.rarity,
+                            category: item.category,
                             price: order.priceThreshold,
                             quantity: 0,
                             ownerNames: new Set()
@@ -1046,7 +1144,10 @@
                         claimData.orderGroups.set(orderKey, {
                             type: 'buy',
                             itemId,
-                            itemName,
+                            itemName: item.name,
+                            tier: item.tier,
+                            rarity: item.rarity,
+                            category: item.category,
                             price: order.priceThreshold,
                             quantity: 0,
                             ownerNames: new Set()
@@ -1064,6 +1165,9 @@
             // Get order type filters
             const showBuyOrders = document.getElementById('showBuyOrders')?.checked ?? true;
             const showSellOrders = document.getElementById('showSellOrders')?.checked ?? true;
+
+            // Get item filter
+            const itemFilter = document.getElementById('itemFilterInput')?.value.toLowerCase() || '';
 
             // Filter by selected claim if applicable
             let claimsToRender = Array.from(claimOrdersMap.entries());
@@ -1086,6 +1190,14 @@
                         // Apply order type filter
                         if (group.type === 'buy' && !showBuyOrders) return false;
                         if (group.type === 'sell' && !showSellOrders) return false;
+
+                        // Apply item name/category filter
+                        if (itemFilter) {
+                            const itemNameMatch = group.itemName.toLowerCase().includes(itemFilter);
+                            const categoryMatch = group.category?.toLowerCase().includes(itemFilter);
+                            if (!itemNameMatch && !categoryMatch) return false;
+                        }
+
                         return true;
                     })
                     .sort((a, b) => a.itemName.localeCompare(b.itemName))
@@ -1098,6 +1210,11 @@
                                 <span class="order-type ${group.type}">${group.type.toUpperCase()}</span>
                                 <span class="order-item-name">
                                     <a href="https://bitjita.com/market/item/${group.itemId}" target="_blank">${escapeHtml(group.itemName)}</a>
+                                    <span class="order-metadata">
+                                        ${group.tier ? `<span class="metadata-badge tier">T${group.tier}</span>` : ''}
+                                        ${group.rarity ? `<span class="metadata-badge rarity">${escapeHtml(group.rarity)}</span>` : ''}
+                                        ${group.category ? `<span class="metadata-badge category">${escapeHtml(group.category)}</span>` : ''}
+                                    </span>
                                 </span>
                                 <span class="order-qty">Qty: ${Number(group.quantity).toLocaleString()} (${ownerCount} ${ownerLabel})</span>
                                 <span class="order-price">${Number(group.price).toLocaleString()} hex</span>
@@ -1109,6 +1226,14 @@
                 const filteredGroups = Array.from(claimData.orderGroups.values()).filter(group => {
                     if (group.type === 'buy' && !showBuyOrders) return false;
                     if (group.type === 'sell' && !showSellOrders) return false;
+
+                    // Apply item name/category filter
+                    if (itemFilter) {
+                        const itemNameMatch = group.itemName.toLowerCase().includes(itemFilter);
+                        const categoryMatch = group.category?.toLowerCase().includes(itemFilter);
+                        if (!itemNameMatch && !categoryMatch) return false;
+                    }
+
                     return true;
                 });
                 const filteredSellCount = filteredGroups.filter(g => g.type === 'sell').length;
@@ -1634,6 +1759,31 @@
             if (lastChangesData) {
                 updateChangeLog(lastChangesData);
             }
+        }
+
+        // ==========================================
+        // ITEM FILTER
+        // ==========================================
+        function applyItemFilter() {
+            const input = document.getElementById('itemFilterInput');
+            const clearBtn = document.getElementById('itemFilterClear');
+
+            if (input.value) {
+                clearBtn.style.display = 'block';
+            } else {
+                clearBtn.style.display = 'none';
+            }
+
+            // Re-render table with filter applied
+            if (currentState) {
+                updateMarketTable({ currentState });
+            }
+        }
+
+        function clearItemFilter() {
+            const input = document.getElementById('itemFilterInput');
+            input.value = '';
+            applyItemFilter();
         }
 
         // ==========================================
