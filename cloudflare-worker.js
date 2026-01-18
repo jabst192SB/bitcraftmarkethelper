@@ -10,7 +10,9 @@
 
 // Target API endpoint
 const TARGET_API = 'https://bitjita.com';
-const CLAIM_ENTITY_ID = '288230376332988523';
+
+// Region ID for Solvenar (used to filter orders)
+const MONITOR_REGION_ID = 4;
 
 /**
  * Durable Object: MarketMonitor
@@ -36,7 +38,7 @@ export class MarketMonitor {
       return this.getChanges(limit);
     } else if (path === '/api/monitor/update') {
       const data = await request.json();
-      return this.updateState(data);
+      return this.updateState(data.marketData, data.orderDetails || {});
     } else if (path === '/api/monitor/reset') {
       return this.resetState();
     }
@@ -79,9 +81,12 @@ export class MarketMonitor {
 
   /**
    * Update state with new market data and detect changes
+   * @param {Object} newData - Market data with items array
+   * @param {Object} orderDetails - Optional order details keyed by item ID
    */
-  async updateState(newData) {
+  async updateState(newData, orderDetails = {}) {
     const previousState = await this.state.storage.get('currentState');
+    const previousOrderDetails = await this.state.storage.get('orderDetails') || {};
     const changes = await this.state.storage.get('changes') || [];
     let changeCount = await this.state.storage.get('changeCount') || 0;
 
@@ -89,10 +94,33 @@ export class MarketMonitor {
     const detectedChanges = this.detectChanges(previousState, newData);
 
     if (detectedChanges.length > 0) {
+      // Attach order details and diff individual orders
+      const changesWithOrders = detectedChanges.map(change => {
+        const currentDetails = orderDetails[change.itemId];
+        const prevDetails = previousOrderDetails[change.itemId];
+
+        if (currentDetails) {
+          // Diff individual orders to find added/removed
+          const orderDiff = this.diffOrders(prevDetails, currentDetails);
+
+          return {
+            ...change,
+            orderDetails: {
+              sellOrders: currentDetails.sellOrders,
+              buyOrders: currentDetails.buyOrders,
+              stats: currentDetails.stats
+            },
+            addedOrders: orderDiff.added,
+            removedOrders: orderDiff.removed
+          };
+        }
+        return change;
+      });
+
       // Add changes to history
       const changeEntry = {
         timestamp: Date.now(),
-        changes: detectedChanges
+        changes: changesWithOrders
       };
       changes.push(changeEntry);
 
@@ -108,17 +136,138 @@ export class MarketMonitor {
       await this.state.storage.put('changeCount', changeCount);
     }
 
-    // Update current state
+    // Update current state and order details
     await this.state.storage.put('currentState', newData);
+    await this.state.storage.put('orderDetails', orderDetails);
     await this.state.storage.put('lastUpdate', Date.now());
 
     return new Response(JSON.stringify({
       success: true,
       changesDetected: detectedChanges.length,
-      totalChanges: changeCount
+      totalChanges: changeCount,
+      itemsWithOrderDetails: Object.keys(orderDetails).length
     }), {
       headers: { 'Content-Type': 'application/json' }
     });
+  }
+
+  /**
+   * Diff orders between previous and current state to find added/removed orders
+   */
+  diffOrders(prevDetails, currentDetails) {
+    const added = { sellOrders: [], buyOrders: [] };
+    const removed = { sellOrders: [], buyOrders: [] };
+
+    if (!prevDetails) {
+      // All current orders are new
+      added.sellOrders = (currentDetails.sellOrders || []).map(order => ({
+        claimName: order.claimName,
+        claimEntityId: order.claimEntityId,
+        ownerName: order.ownerName || order.playerName,
+        ownerEntityId: order.ownerEntityId || order.playerEntityId,
+        quantity: order.quantity,
+        priceThreshold: order.priceThreshold,
+        regionId: order.regionId
+      }));
+      added.buyOrders = (currentDetails.buyOrders || []).map(order => ({
+        claimName: order.claimName,
+        claimEntityId: order.claimEntityId,
+        ownerName: order.ownerName || order.playerName,
+        ownerEntityId: order.ownerEntityId || order.playerEntityId,
+        quantity: order.quantity,
+        priceThreshold: order.priceThreshold,
+        regionId: order.regionId
+      }));
+      return { added, removed };
+    }
+
+    // Create order keys for comparison (claimEntityId + price + type is unique enough)
+    const createOrderKey = (order) =>
+      `${order.claimEntityId || order.claimName}_${order.priceThreshold}_${order.quantity}`;
+
+    // Diff sell orders
+    const prevSellKeys = new Map();
+    (prevDetails.sellOrders || []).forEach(order => {
+      prevSellKeys.set(createOrderKey(order), order);
+    });
+
+    const currSellKeys = new Map();
+    (currentDetails.sellOrders || []).forEach(order => {
+      currSellKeys.set(createOrderKey(order), order);
+    });
+
+    // Find added sell orders
+    for (const [key, order] of currSellKeys) {
+      if (!prevSellKeys.has(key)) {
+        added.sellOrders.push({
+          claimName: order.claimName,
+          claimEntityId: order.claimEntityId,
+          ownerName: order.ownerName || order.playerName,
+          ownerEntityId: order.ownerEntityId || order.playerEntityId,
+          quantity: order.quantity,
+          priceThreshold: order.priceThreshold,
+          regionId: order.regionId
+        });
+      }
+    }
+
+    // Find removed sell orders
+    for (const [key, order] of prevSellKeys) {
+      if (!currSellKeys.has(key)) {
+        removed.sellOrders.push({
+          claimName: order.claimName,
+          claimEntityId: order.claimEntityId,
+          ownerName: order.ownerName || order.playerName,
+          ownerEntityId: order.ownerEntityId || order.playerEntityId,
+          quantity: order.quantity,
+          priceThreshold: order.priceThreshold,
+          regionId: order.regionId
+        });
+      }
+    }
+
+    // Diff buy orders
+    const prevBuyKeys = new Map();
+    (prevDetails.buyOrders || []).forEach(order => {
+      prevBuyKeys.set(createOrderKey(order), order);
+    });
+
+    const currBuyKeys = new Map();
+    (currentDetails.buyOrders || []).forEach(order => {
+      currBuyKeys.set(createOrderKey(order), order);
+    });
+
+    // Find added buy orders
+    for (const [key, order] of currBuyKeys) {
+      if (!prevBuyKeys.has(key)) {
+        added.buyOrders.push({
+          claimName: order.claimName,
+          claimEntityId: order.claimEntityId,
+          ownerName: order.ownerName || order.playerName,
+          ownerEntityId: order.ownerEntityId || order.playerEntityId,
+          quantity: order.quantity,
+          priceThreshold: order.priceThreshold,
+          regionId: order.regionId
+        });
+      }
+    }
+
+    // Find removed buy orders
+    for (const [key, order] of prevBuyKeys) {
+      if (!currBuyKeys.has(key)) {
+        removed.buyOrders.push({
+          claimName: order.claimName,
+          claimEntityId: order.claimEntityId,
+          ownerName: order.ownerName || order.playerName,
+          ownerEntityId: order.ownerEntityId || order.playerEntityId,
+          quantity: order.quantity,
+          priceThreshold: order.priceThreshold,
+          regionId: order.regionId
+        });
+      }
+    }
+
+    return { added, removed };
   }
 
   /**
@@ -254,18 +403,38 @@ export default {
   async scheduled(event, env, ctx) {
     console.log('Cron triggered at:', new Date(event.scheduledTime).toISOString());
 
-    // Fetch market data
     try {
+      // Fetch current market data
       const marketData = await fetchMarketData();
 
       // Get Durable Object instance
       const id = env.MARKET_MONITOR.idFromName('global');
       const stub = env.MARKET_MONITOR.get(id);
 
-      // Update state
+      // Get previous state to detect changes before updating
+      const stateResponse = await stub.fetch(new Request('https://dummy/api/monitor/state'));
+      const stateData = await stateResponse.json();
+      const previousState = stateData.currentState;
+
+      // Detect which items have changes
+      const changedItemIds = detectChangedItemIds(previousState, marketData);
+      console.log(`Detected ${changedItemIds.length} changed items`);
+
+      // Fetch order details for changed items
+      let orderDetails = {};
+      if (changedItemIds.length > 0) {
+        console.log('Fetching order details for changed items:', changedItemIds);
+        orderDetails = await fetchOrdersForItems(changedItemIds);
+        console.log(`Fetched order details for ${Object.keys(orderDetails).length} items`);
+      }
+
+      // Update state with market data and order details
       const response = await stub.fetch(new Request('https://dummy/api/monitor/update', {
         method: 'POST',
-        body: JSON.stringify(marketData),
+        body: JSON.stringify({
+          marketData: marketData,
+          orderDetails: orderDetails
+        }),
         headers: { 'Content-Type': 'application/json' }
       }));
 
@@ -352,10 +521,65 @@ async function handleProxyRequest(request, env) {
 }
 
 /**
+ * Detect which item IDs have changes between previous and new market states
+ * (Standalone function for use in cron before updating Durable Object)
+ */
+function detectChangedItemIds(previousState, newState) {
+  const changedIds = [];
+
+  if (!previousState || !previousState.items) {
+    return changedIds; // First run, no changes to detect
+  }
+
+  // Create maps for quick lookup
+  const prevMap = new Map();
+  previousState.items.forEach(item => {
+    prevMap.set(item.id, item);
+  });
+
+  const newMap = new Map();
+  newState.items.forEach(item => {
+    newMap.set(item.id, item);
+  });
+
+  // Check all items in new state
+  for (const newItem of newState.items) {
+    const prevItem = prevMap.get(newItem.id);
+
+    if (!prevItem) {
+      // New item appeared
+      if (newItem.totalOrders > 0) {
+        changedIds.push(newItem.id);
+      }
+      continue;
+    }
+
+    // Check for changes in order counts
+    const sellOrderChange = newItem.sellOrders - prevItem.sellOrders;
+    const buyOrderChange = newItem.buyOrders - prevItem.buyOrders;
+    const totalOrderChange = newItem.totalOrders - prevItem.totalOrders;
+
+    if (sellOrderChange !== 0 || buyOrderChange !== 0 || totalOrderChange !== 0) {
+      changedIds.push(newItem.id);
+    }
+  }
+
+  // Check for items that disappeared
+  for (const prevItem of previousState.items) {
+    if (!newMap.has(prevItem.id) && prevItem.totalOrders > 0) {
+      changedIds.push(prevItem.id);
+    }
+  }
+
+  return changedIds;
+}
+
+/**
  * Fetch market data from bitjita API
  */
 async function fetchMarketData() {
-  const apiUrl = `${TARGET_API}/api/market?claimEntityId=${CLAIM_ENTITY_ID}&hasOrders=true`;
+  // Fetch all items with orders (no claim filter - we'll filter by region instead)
+  const apiUrl = `${TARGET_API}/api/market?hasOrders=true`;
 
   const response = await fetch(apiUrl);
 
@@ -369,6 +593,61 @@ async function fetchMarketData() {
     items: data.data?.items || [],
     fetchedAt: Date.now()
   };
+}
+
+/**
+ * Fetch full order details for a specific item
+ */
+async function fetchItemOrders(itemId) {
+  const apiUrl = `${TARGET_API}/api/market/item/${itemId}`;
+
+  const response = await fetch(apiUrl);
+
+  if (!response.ok) {
+    console.error(`Failed to fetch orders for item ${itemId}: ${response.status}`);
+    return null;
+  }
+
+  const data = await response.json();
+
+  // Filter orders to only include those from the monitored region (Solvenar)
+  const sellOrders = (data.sellOrders || []).filter(order => order.regionId === MONITOR_REGION_ID);
+  const buyOrders = (data.buyOrders || []).filter(order => order.regionId === MONITOR_REGION_ID);
+
+  return {
+    itemId: itemId,
+    sellOrders: sellOrders,
+    buyOrders: buyOrders,
+    stats: data.stats || {}
+  };
+}
+
+/**
+ * Fetch order details for multiple items (with rate limiting)
+ */
+async function fetchOrdersForItems(itemIds) {
+  const results = {};
+
+  // Fetch in batches of 5 to avoid rate limiting (250 req/min limit)
+  const batchSize = 5;
+  for (let i = 0; i < itemIds.length; i += batchSize) {
+    const batch = itemIds.slice(i, i + batchSize);
+    const promises = batch.map(id => fetchItemOrders(id));
+    const batchResults = await Promise.all(promises);
+
+    batchResults.forEach(result => {
+      if (result) {
+        results[result.itemId] = result;
+      }
+    });
+
+    // Small delay between batches if there are more
+    if (i + batchSize < itemIds.length) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  }
+
+  return results;
 }
 
 /**

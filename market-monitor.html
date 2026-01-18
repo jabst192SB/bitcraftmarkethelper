@@ -353,6 +353,130 @@
                 width: 100%;
             }
         }
+
+        /* Claim Filter Styles */
+        .claim-filter-container {
+            position: relative;
+            flex: 1;
+            min-width: 250px;
+            max-width: 400px;
+        }
+
+        .claim-filter-label {
+            color: #b0b0b0;
+            font-size: 12px;
+            margin-bottom: 4px;
+            display: block;
+        }
+
+        .claim-filter-input {
+            width: 100%;
+            padding: 10px 12px;
+            background-color: #3a3a3a;
+            border: 1px solid #4a4a4a;
+            border-radius: 4px;
+            color: #e0e0e0;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .claim-filter-input:focus {
+            border-color: #4a9eff;
+        }
+
+        .claim-filter-input::placeholder {
+            color: #808080;
+        }
+
+        .claim-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background-color: #3a3a3a;
+            border: 1px solid #4a4a4a;
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 100;
+            display: none;
+        }
+
+        .claim-dropdown.show {
+            display: block;
+        }
+
+        .claim-dropdown-item {
+            padding: 10px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #4a4a4a;
+            transition: background-color 0.2s;
+        }
+
+        .claim-dropdown-item:last-child {
+            border-bottom: none;
+        }
+
+        .claim-dropdown-item:hover,
+        .claim-dropdown-item.selected {
+            background-color: #4a4a4a;
+        }
+
+        .claim-dropdown-item.all-claims {
+            color: #4a9eff;
+            font-weight: 500;
+        }
+
+        .claim-dropdown-item .claim-name {
+            color: #e0e0e0;
+        }
+
+        .claim-dropdown-item .claim-orders {
+            color: #808080;
+            font-size: 12px;
+            margin-left: 8px;
+        }
+
+        .claim-filter-clear {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: #808080;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 4px;
+            line-height: 1;
+            margin-top: 8px;
+        }
+
+        .claim-filter-clear:hover {
+            color: #e0e0e0;
+        }
+
+        .active-filter {
+            background-color: #3a4a5a;
+            padding: 6px 12px;
+            border-radius: 4px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: #4a9eff;
+        }
+
+        .active-filter .remove-filter {
+            cursor: pointer;
+            color: #808080;
+        }
+
+        .active-filter .remove-filter:hover {
+            color: #f87171;
+        }
     </style>
 </head>
 <body>
@@ -390,6 +514,17 @@
             <button class="btn" id="refreshBtn" onclick="refreshData()">🔄 Refresh Now</button>
             <button class="btn secondary" id="pauseBtn" onclick="togglePause()">⏸️ Pause Auto-Refresh</button>
             <button class="btn secondary" onclick="clearHighlights()">✨ Clear Highlights</button>
+
+            <div class="claim-filter-container">
+                <label class="claim-filter-label">Filter by Claim</label>
+                <input type="text"
+                       class="claim-filter-input"
+                       id="claimFilterInput"
+                       placeholder="Type to search claims..."
+                       autocomplete="off">
+                <button class="claim-filter-clear" id="claimFilterClear" onclick="clearClaimFilter()" style="display: none;">✕</button>
+                <div class="claim-dropdown" id="claimDropdown"></div>
+            </div>
         </div>
 
         <div id="errorContainer"></div>
@@ -444,11 +579,15 @@
         let refreshTimer = null;
         let currentState = null;
         let previousItems = new Map();
+        let allClaims = new Map(); // Map of claimName -> { claimEntityId, orderCount }
+        let selectedClaim = null; // Currently selected claim filter
+        let lastChangesData = null; // Store changes data for filtering
 
         // ==========================================
         // INITIALIZATION
         // ==========================================
         async function init() {
+            initClaimFilter();
             await refreshData();
             startAutoRefresh();
         }
@@ -506,6 +645,12 @@
                 }
 
                 const changesData = await changesResponse.json();
+
+                // Store for filtering and extract claims
+                currentState = stateData.currentState;
+                lastChangesData = changesData;
+                extractClaimsFromChanges(changesData);
+                countClaimOrders(changesData);
 
                 // Update UI
                 updateMarketTable(stateData);
@@ -609,6 +754,14 @@
                 const entry = data.changes[i];
 
                 entry.changes.forEach(change => {
+                    // Filter by selected claim if one is selected
+                    if (selectedClaim) {
+                        const hasMatchingClaim = changeInvolvesClaim(change, selectedClaim);
+                        if (!hasMatchingClaim) {
+                            return; // Skip this change
+                        }
+                    }
+
                     let className = 'change-entry';
                     let details = '';
 
@@ -638,17 +791,75 @@
                         details = `All orders removed (previously had ${change.previous.totalOrders} orders)`;
                     }
 
+                    // Add claim info if we have order details
+                    let claimInfo = '';
+                    if (change.addedOrders) {
+                        const addedClaims = getClaimsFromOrders(change.addedOrders);
+                        if (addedClaims.length > 0) {
+                            claimInfo += `<div class="change-claims" style="color: #4ade80; font-size: 12px; margin-top: 4px;">+ ${addedClaims.join(', ')}</div>`;
+                        }
+                    }
+                    if (change.removedOrders) {
+                        const removedClaims = getClaimsFromOrders(change.removedOrders);
+                        if (removedClaims.length > 0) {
+                            claimInfo += `<div class="change-claims" style="color: #f87171; font-size: 12px; margin-top: 4px;">- ${removedClaims.join(', ')}</div>`;
+                        }
+                    }
+
                     entries.push(`
                         <div class="${className}">
                             <div class="change-timestamp">${new Date(entry.timestamp).toLocaleString()}</div>
                             <div class="change-item-name">${escapeHtml(change.itemName)}</div>
                             <div class="change-details">${details}</div>
+                            ${claimInfo}
                         </div>
                     `);
                 });
             }
 
-            changeLog.innerHTML = entries.join('');
+            if (entries.length === 0 && selectedClaim) {
+                changeLog.innerHTML = `<div class="empty-state">No changes found for claim "${escapeHtml(selectedClaim)}". Try selecting "All Claims" to see all changes.</div>`;
+            } else if (entries.length === 0) {
+                changeLog.innerHTML = '<div class="empty-state">No changes detected yet. Changes will appear here when market orders are added, removed, or modified.</div>';
+            } else {
+                changeLog.innerHTML = entries.join('');
+            }
+        }
+
+        function changeInvolvesClaim(change, claimName) {
+            // Check if change involves the specified claim
+            if (change.orderDetails) {
+                const allOrders = [...(change.orderDetails.sellOrders || []), ...(change.orderDetails.buyOrders || [])];
+                if (allOrders.some(o => o.claimName === claimName)) {
+                    return true;
+                }
+            }
+            if (change.addedOrders) {
+                const allAdded = [...(change.addedOrders.sellOrders || []), ...(change.addedOrders.buyOrders || [])];
+                if (allAdded.some(o => o.claimName === claimName)) {
+                    return true;
+                }
+            }
+            if (change.removedOrders) {
+                const allRemoved = [...(change.removedOrders.sellOrders || []), ...(change.removedOrders.buyOrders || [])];
+                if (allRemoved.some(o => o.claimName === claimName)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function getClaimsFromOrders(orders) {
+            const claims = new Set();
+            [...(orders.sellOrders || []), ...(orders.buyOrders || [])].forEach(o => {
+                if (o.claimName) {
+                    // If filtering by claim, only show that claim
+                    if (!selectedClaim || o.claimName === selectedClaim) {
+                        claims.add(o.claimName);
+                    }
+                }
+            });
+            return Array.from(claims);
         }
 
         function updateStatusBar(data) {
@@ -705,6 +916,224 @@
         // ==========================================
         function viewItemDetails(itemId, itemName) {
             window.open(`https://bitjita.com/market/item/${itemId}`, '_blank');
+        }
+
+        // ==========================================
+        // CLAIM FILTER
+        // ==========================================
+        function initClaimFilter() {
+            const input = document.getElementById('claimFilterInput');
+            const dropdown = document.getElementById('claimDropdown');
+
+            // Show dropdown on focus
+            input.addEventListener('focus', () => {
+                updateClaimDropdown(input.value);
+                dropdown.classList.add('show');
+            });
+
+            // Filter on input
+            input.addEventListener('input', (e) => {
+                updateClaimDropdown(e.target.value);
+                dropdown.classList.add('show');
+            });
+
+            // Hide dropdown when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.claim-filter-container')) {
+                    dropdown.classList.remove('show');
+                }
+            });
+
+            // Keyboard navigation
+            input.addEventListener('keydown', (e) => {
+                const items = dropdown.querySelectorAll('.claim-dropdown-item');
+                const selected = dropdown.querySelector('.claim-dropdown-item.selected');
+                let index = Array.from(items).indexOf(selected);
+
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    if (index < items.length - 1) {
+                        items[index]?.classList.remove('selected');
+                        items[index + 1]?.classList.add('selected');
+                        items[index + 1]?.scrollIntoView({ block: 'nearest' });
+                    }
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    if (index > 0) {
+                        items[index]?.classList.remove('selected');
+                        items[index - 1]?.classList.add('selected');
+                        items[index - 1]?.scrollIntoView({ block: 'nearest' });
+                    }
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (selected) {
+                        selected.click();
+                    }
+                } else if (e.key === 'Escape') {
+                    dropdown.classList.remove('show');
+                    input.blur();
+                }
+            });
+        }
+
+        function updateClaimDropdown(filter = '') {
+            const dropdown = document.getElementById('claimDropdown');
+            const filterLower = filter.toLowerCase();
+
+            // Build list of claims
+            let claimsList = Array.from(allClaims.entries())
+                .map(([name, data]) => ({ name, ...data }))
+                .sort((a, b) => b.orderCount - a.orderCount);
+
+            // Filter by search term
+            if (filterLower) {
+                claimsList = claimsList.filter(c =>
+                    c.name.toLowerCase().includes(filterLower)
+                );
+            }
+
+            // Build dropdown HTML
+            let html = `
+                <div class="claim-dropdown-item all-claims" onclick="selectClaim(null)">
+                    <span class="claim-name">All Claims</span>
+                    <span class="claim-orders">(${allClaims.size} claims)</span>
+                </div>
+            `;
+
+            claimsList.slice(0, 50).forEach((claim, index) => {
+                html += `
+                    <div class="claim-dropdown-item" onclick="selectClaim('${escapeHtml(claim.name)}')">
+                        <span class="claim-name">${escapeHtml(claim.name)}</span>
+                        <span class="claim-orders">${claim.orderCount} orders</span>
+                    </div>
+                `;
+            });
+
+            if (claimsList.length === 0 && filterLower) {
+                html += `<div class="claim-dropdown-item" style="color: #808080; cursor: default;">No claims found</div>`;
+            }
+
+            dropdown.innerHTML = html;
+        }
+
+        function selectClaim(claimName) {
+            selectedClaim = claimName;
+            const input = document.getElementById('claimFilterInput');
+            const dropdown = document.getElementById('claimDropdown');
+            const clearBtn = document.getElementById('claimFilterClear');
+
+            if (claimName) {
+                input.value = claimName;
+                clearBtn.style.display = 'block';
+            } else {
+                input.value = '';
+                clearBtn.style.display = 'none';
+            }
+
+            dropdown.classList.remove('show');
+
+            // Re-render table and changes with filter applied
+            if (currentState) {
+                updateMarketTable({ currentState });
+            }
+            if (lastChangesData) {
+                updateChangeLog(lastChangesData);
+            }
+        }
+
+        function clearClaimFilter() {
+            selectClaim(null);
+            document.getElementById('claimFilterInput').focus();
+        }
+
+        function extractClaimsFromChanges(changesData) {
+            // Extract unique claims from change history order details
+            if (!changesData || !changesData.changes) return;
+
+            changesData.changes.forEach(entry => {
+                entry.changes.forEach(change => {
+                    if (change.orderDetails) {
+                        // Extract from current orders
+                        [...(change.orderDetails.sellOrders || []), ...(change.orderDetails.buyOrders || [])].forEach(order => {
+                            if (order.claimName) {
+                                const existing = allClaims.get(order.claimName);
+                                if (!existing) {
+                                    allClaims.set(order.claimName, {
+                                        claimEntityId: order.claimEntityId,
+                                        orderCount: 1
+                                    });
+                                }
+                            }
+                        });
+                    }
+
+                    // Extract from added/removed orders
+                    if (change.addedOrders) {
+                        [...(change.addedOrders.sellOrders || []), ...(change.addedOrders.buyOrders || [])].forEach(order => {
+                            if (order.claimName) {
+                                const existing = allClaims.get(order.claimName);
+                                if (!existing) {
+                                    allClaims.set(order.claimName, {
+                                        claimEntityId: order.claimEntityId,
+                                        orderCount: 1
+                                    });
+                                }
+                            }
+                        });
+                    }
+
+                    if (change.removedOrders) {
+                        [...(change.removedOrders.sellOrders || []), ...(change.removedOrders.buyOrders || [])].forEach(order => {
+                            if (order.claimName) {
+                                const existing = allClaims.get(order.claimName);
+                                if (!existing) {
+                                    allClaims.set(order.claimName, {
+                                        claimEntityId: order.claimEntityId,
+                                        orderCount: 1
+                                    });
+                                }
+                            }
+                        });
+                    }
+                });
+            });
+        }
+
+        function countClaimOrders(changesData) {
+            // Reset counts
+            allClaims.forEach((data, name) => {
+                data.orderCount = 0;
+            });
+
+            // Count orders per claim from the most recent change entries with order details
+            if (!changesData || !changesData.changes) return;
+
+            // Get unique items with their latest order details
+            const latestOrderDetails = new Map();
+            changesData.changes.forEach(entry => {
+                entry.changes.forEach(change => {
+                    if (change.orderDetails) {
+                        latestOrderDetails.set(change.itemId, change.orderDetails);
+                    }
+                });
+            });
+
+            // Count orders per claim
+            latestOrderDetails.forEach((orderDetails, itemId) => {
+                [...(orderDetails.sellOrders || []), ...(orderDetails.buyOrders || [])].forEach(order => {
+                    if (order.claimName) {
+                        const claim = allClaims.get(order.claimName);
+                        if (claim) {
+                            claim.orderCount++;
+                        } else {
+                            allClaims.set(order.claimName, {
+                                claimEntityId: order.claimEntityId,
+                                orderCount: 1
+                            });
+                        }
+                    }
+                });
+            });
         }
 
         // ==========================================
