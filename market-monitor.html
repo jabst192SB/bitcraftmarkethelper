@@ -1099,8 +1099,8 @@
                                 <span class="order-item-name">
                                     <a href="https://bitjita.com/market/item/${group.itemId}" target="_blank">${escapeHtml(group.itemName)}</a>
                                 </span>
-                                <span class="order-qty">Qty: ${group.quantity.toLocaleString()} (${ownerCount} ${ownerLabel})</span>
-                                <span class="order-price">${group.price.toLocaleString()} hex</span>
+                                <span class="order-qty">Qty: ${Number(group.quantity).toLocaleString()} (${ownerCount} ${ownerLabel})</span>
+                                <span class="order-price">${Number(group.price).toLocaleString()} hex</span>
                             </div>
                         `;
                     }).join('');
@@ -1306,7 +1306,7 @@
                                         <span class="owner-badge">${escapeHtml(order.ownerName || 'Unknown')}</span>
                                     </div>
                                     <div style="margin-top: 4px; font-size: 12px; color: #b0b0b0;">
-                                        Qty: ${order.quantity.toLocaleString()} @ ${order.priceThreshold.toLocaleString()} hex
+                                        Qty: ${Number(order.quantity).toLocaleString()} @ ${Number(order.priceThreshold).toLocaleString()} hex
                                     </div>
                                 </div>
                             `;
@@ -1331,7 +1331,7 @@
                                         <span class="owner-badge">${escapeHtml(order.ownerName || 'Unknown')}</span>
                                     </div>
                                     <div style="margin-top: 4px; font-size: 12px; color: #b0b0b0;">
-                                        Qty: ${order.quantity.toLocaleString()} @ ${order.priceThreshold.toLocaleString()} hex
+                                        Qty: ${Number(order.quantity).toLocaleString()} @ ${Number(order.priceThreshold).toLocaleString()} hex
                                     </div>
                                 </div>
                             `;
