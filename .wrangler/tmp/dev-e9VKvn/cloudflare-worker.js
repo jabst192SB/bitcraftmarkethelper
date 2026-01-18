@@ -336,6 +336,9 @@ var cloudflare_worker_default = {
       return handleOptions(request);
     }
     if (url.pathname.startsWith("/api/monitor/")) {
+      if (url.pathname === "/api/monitor/trigger" && request.method === "POST") {
+        return handleManualTrigger(env);
+      }
       return handleMonitorRequest(request, env);
     }
     return handleProxyRequest(request, env);
@@ -359,15 +362,21 @@ var cloudflare_worker_default = {
       const allItemIds = marketData.items.map((item) => item.id);
       let orderDetails = { ...previousOrderDetails };
       for (const key of Object.keys(orderDetails)) {
-        if (!allItemIds.includes(parseInt(key))) {
+        if (!allItemIds.includes(key) && !allItemIds.includes(String(key))) {
           delete orderDetails[key];
         }
       }
-      if (changedItemIds.length > 0) {
-        console.log(`Fetching order details for ${changedItemIds.length} changed items`);
-        const changedOrderDetails = await fetchOrdersForItems(changedItemIds);
-        orderDetails = { ...orderDetails, ...changedOrderDetails };
-        console.log(`Updated order details for ${Object.keys(changedOrderDetails).length} items`);
+      const MAX_ITEMS_PER_RUN = 40;
+      const missingDetailIds = allItemIds.filter((id2) => !orderDetails[id2] && !orderDetails[String(id2)]);
+      const itemsToFetch = [
+        ...changedItemIds.slice(0, MAX_ITEMS_PER_RUN),
+        ...missingDetailIds.slice(0, Math.max(0, MAX_ITEMS_PER_RUN - changedItemIds.length))
+      ].slice(0, MAX_ITEMS_PER_RUN);
+      if (itemsToFetch.length > 0) {
+        console.log(`Fetching order details for ${itemsToFetch.length} items (${changedItemIds.length} changed, ${missingDetailIds.length} missing)`);
+        const fetchedOrderDetails = await fetchOrdersForItems(itemsToFetch);
+        orderDetails = { ...orderDetails, ...fetchedOrderDetails };
+        console.log(`Updated order details for ${Object.keys(fetchedOrderDetails).length} items`);
       }
       console.log(`Total order details: ${Object.keys(orderDetails).length} items`);
       const response = await stub.fetch(new Request("https://dummy/api/monitor/update", {
@@ -385,6 +394,74 @@ var cloudflare_worker_default = {
     }
   }
 };
+async function handleManualTrigger(env) {
+  try {
+    console.log("Manual trigger at:", (/* @__PURE__ */ new Date()).toISOString());
+    const marketData = await fetchMarketData();
+    console.log(`Found ${marketData.items.length} items with orders`);
+    const id = env.MARKET_MONITOR.idFromName("global");
+    const stub = env.MARKET_MONITOR.get(id);
+    const stateResponse = await stub.fetch(new Request("https://dummy/api/monitor/state"));
+    const stateData = await stateResponse.json();
+    const previousState = stateData.currentState;
+    const previousOrderDetails = stateData.orderDetails || {};
+    const changedItemIds = detectChangedItemIds(previousState, marketData);
+    console.log(`Detected ${changedItemIds.length} changed items`);
+    const allItemIds = marketData.items.map((item) => item.id);
+    let orderDetails = { ...previousOrderDetails };
+    for (const key of Object.keys(orderDetails)) {
+      if (!allItemIds.includes(key) && !allItemIds.includes(String(key))) {
+        delete orderDetails[key];
+      }
+    }
+    const MAX_ITEMS_PER_RUN = 40;
+    const missingDetailIds = allItemIds.filter((id2) => !orderDetails[id2] && !orderDetails[String(id2)]);
+    const itemsToFetch = [
+      ...changedItemIds.slice(0, MAX_ITEMS_PER_RUN),
+      ...missingDetailIds.slice(0, Math.max(0, MAX_ITEMS_PER_RUN - changedItemIds.length))
+    ].slice(0, MAX_ITEMS_PER_RUN);
+    if (itemsToFetch.length > 0) {
+      console.log(`Fetching order details for ${itemsToFetch.length} items (${changedItemIds.length} changed, ${missingDetailIds.length} missing)`);
+      const fetchedOrderDetails = await fetchOrdersForItems(itemsToFetch);
+      orderDetails = { ...orderDetails, ...fetchedOrderDetails };
+      console.log(`Updated order details for ${Object.keys(fetchedOrderDetails).length} items`);
+    }
+    console.log(`Total order details: ${Object.keys(orderDetails).length} items`);
+    const response = await stub.fetch(new Request("https://dummy/api/monitor/update", {
+      method: "POST",
+      body: JSON.stringify({
+        marketData,
+        orderDetails
+      }),
+      headers: { "Content-Type": "application/json" }
+    }));
+    const result = await response.json();
+    console.log("Market update result:", result);
+    return new Response(JSON.stringify({
+      success: true,
+      ...result,
+      triggeredAt: (/* @__PURE__ */ new Date()).toISOString()
+    }), {
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      }
+    });
+  } catch (error) {
+    console.error("Error in manual trigger:", error);
+    return new Response(JSON.stringify({
+      error: "Manual trigger failed",
+      message: error.message
+    }), {
+      status: 500,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      }
+    });
+  }
+}
+__name(handleManualTrigger, "handleManualTrigger");
 async function handleMonitorRequest(request, env) {
   try {
     const id = env.MARKET_MONITOR.idFromName("global");
@@ -502,13 +579,8 @@ async function fetchItemOrders(itemId) {
   };
 }
 __name(fetchItemOrders, "fetchItemOrders");
-async function fetchOrdersForItems(itemIds, previousOrderDetails = {}) {
-  const results = { ...previousOrderDetails };
-  for (const key of Object.keys(results)) {
-    if (!itemIds.includes(parseInt(key))) {
-      delete results[key];
-    }
-  }
+async function fetchOrdersForItems(itemIds) {
+  const results = {};
   console.log(`Need to fetch ${itemIds.length} items`);
   const batchSize = 99;
   const delayBetweenBatches = 100;

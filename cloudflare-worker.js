@@ -392,6 +392,10 @@ export default {
 
     // Market Monitor API endpoints
     if (url.pathname.startsWith('/api/monitor/')) {
+      // Manual trigger endpoint
+      if (url.pathname === '/api/monitor/trigger' && request.method === 'POST') {
+        return handleManualTrigger(env);
+      }
       return handleMonitorRequest(request, env);
     }
 
@@ -429,19 +433,32 @@ export default {
       let orderDetails = { ...previousOrderDetails };
 
       // Remove items that no longer have orders
+      // Note: allItemIds are strings from the API
       for (const key of Object.keys(orderDetails)) {
-        if (!allItemIds.includes(parseInt(key))) {
+        if (!allItemIds.includes(key) && !allItemIds.includes(String(key))) {
           delete orderDetails[key];
         }
       }
 
-      // Fetch order details only for CHANGED items (much faster!)
-      if (changedItemIds.length > 0) {
-        console.log(`Fetching order details for ${changedItemIds.length} changed items`);
-        const changedOrderDetails = await fetchOrdersForItems(changedItemIds);
-        // Merge changed items into full order details
-        orderDetails = { ...orderDetails, ...changedOrderDetails };
-        console.log(`Updated order details for ${Object.keys(changedOrderDetails).length} items`);
+      // Fetch order details for changed items AND items we don't have details for yet
+      // Limit to 40 items per run to stay under Cloudflare's 50 subrequest limit
+      const MAX_ITEMS_PER_RUN = 40;
+
+      // Find items we don't have order details for yet
+      const missingDetailIds = allItemIds.filter(id => !orderDetails[id] && !orderDetails[String(id)]);
+
+      // Prioritize changed items, then fill with missing items
+      const itemsToFetch = [
+        ...changedItemIds.slice(0, MAX_ITEMS_PER_RUN),
+        ...missingDetailIds.slice(0, Math.max(0, MAX_ITEMS_PER_RUN - changedItemIds.length))
+      ].slice(0, MAX_ITEMS_PER_RUN);
+
+      if (itemsToFetch.length > 0) {
+        console.log(`Fetching order details for ${itemsToFetch.length} items (${changedItemIds.length} changed, ${missingDetailIds.length} missing)`);
+        const fetchedOrderDetails = await fetchOrdersForItems(itemsToFetch);
+        // Merge fetched items into full order details
+        orderDetails = { ...orderDetails, ...fetchedOrderDetails };
+        console.log(`Updated order details for ${Object.keys(fetchedOrderDetails).length} items`);
       }
 
       console.log(`Total order details: ${Object.keys(orderDetails).length} items`);
@@ -463,6 +480,104 @@ export default {
     }
   }
 };
+
+/**
+ * Handle manual trigger of market update (same as cron)
+ */
+async function handleManualTrigger(env) {
+  try {
+    console.log('Manual trigger at:', new Date().toISOString());
+
+    // Fetch current market data (list of items with orders)
+    const marketData = await fetchMarketData();
+    console.log(`Found ${marketData.items.length} items with orders`);
+
+    // Get Durable Object instance
+    const id = env.MARKET_MONITOR.idFromName('global');
+    const stub = env.MARKET_MONITOR.get(id);
+
+    // Get previous state to detect changes
+    const stateResponse = await stub.fetch(new Request('https://dummy/api/monitor/state'));
+    const stateData = await stateResponse.json();
+    const previousState = stateData.currentState;
+    const previousOrderDetails = stateData.orderDetails || {};
+
+    // Detect which items have changes
+    const changedItemIds = detectChangedItemIds(previousState, marketData);
+    console.log(`Detected ${changedItemIds.length} changed items`);
+
+    // Build order details: keep previous data, fetch only changed items
+    const allItemIds = marketData.items.map(item => item.id);
+    let orderDetails = { ...previousOrderDetails };
+
+    // Remove items that no longer have orders
+    // Note: allItemIds are strings from the API
+    for (const key of Object.keys(orderDetails)) {
+      if (!allItemIds.includes(key) && !allItemIds.includes(String(key))) {
+        delete orderDetails[key];
+      }
+    }
+
+    // Fetch order details for changed items AND items we don't have details for yet
+    // Limit to 40 items per run to stay under Cloudflare's 50 subrequest limit
+    const MAX_ITEMS_PER_RUN = 40;
+
+    // Find items we don't have order details for yet
+    const missingDetailIds = allItemIds.filter(id => !orderDetails[id] && !orderDetails[String(id)]);
+
+    // Prioritize changed items, then fill with missing items
+    const itemsToFetch = [
+      ...changedItemIds.slice(0, MAX_ITEMS_PER_RUN),
+      ...missingDetailIds.slice(0, Math.max(0, MAX_ITEMS_PER_RUN - changedItemIds.length))
+    ].slice(0, MAX_ITEMS_PER_RUN);
+
+    if (itemsToFetch.length > 0) {
+      console.log(`Fetching order details for ${itemsToFetch.length} items (${changedItemIds.length} changed, ${missingDetailIds.length} missing)`);
+      const fetchedOrderDetails = await fetchOrdersForItems(itemsToFetch);
+      // Merge fetched items into full order details
+      orderDetails = { ...orderDetails, ...fetchedOrderDetails };
+      console.log(`Updated order details for ${Object.keys(fetchedOrderDetails).length} items`);
+    }
+
+    console.log(`Total order details: ${Object.keys(orderDetails).length} items`);
+
+    // Update state with market data and order details
+    const response = await stub.fetch(new Request('https://dummy/api/monitor/update', {
+      method: 'POST',
+      body: JSON.stringify({
+        marketData: marketData,
+        orderDetails: orderDetails
+      }),
+      headers: { 'Content-Type': 'application/json' }
+    }));
+
+    const result = await response.json();
+    console.log('Market update result:', result);
+
+    return new Response(JSON.stringify({
+      success: true,
+      ...result,
+      triggeredAt: new Date().toISOString()
+    }), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      }
+    });
+  } catch (error) {
+    console.error('Error in manual trigger:', error);
+    return new Response(JSON.stringify({
+      error: 'Manual trigger failed',
+      message: error.message
+    }), {
+      status: 500,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      }
+    });
+  }
+}
 
 /**
  * Handle monitor API requests
@@ -645,16 +760,8 @@ async function fetchItemOrders(itemId) {
  * @param {number[]} itemIds - All item IDs that currently have orders
  * @param {Object} previousOrderDetails - Previous order details to merge with
  */
-async function fetchOrdersForItems(itemIds, previousOrderDetails = {}) {
-  // Start with previous order details and update with fresh data
-  const results = { ...previousOrderDetails };
-
-  // Remove items that no longer have orders
-  for (const key of Object.keys(results)) {
-    if (!itemIds.includes(parseInt(key))) {
-      delete results[key];
-    }
-  }
+async function fetchOrdersForItems(itemIds) {
+  const results = {};
 
   console.log(`Need to fetch ${itemIds.length} items`);
 
