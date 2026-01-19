@@ -1027,7 +1027,6 @@
 
         <div class="controls">
             <button class="btn" id="refreshBtn" onclick="refreshData()">🔄 Refresh Now</button>
-            <button class="btn" id="triggerBtn" onclick="triggerWorkerUpdate()">⚡ Trigger Worker Update</button>
             <button class="btn secondary" id="pauseBtn" onclick="togglePause()">⏸️ Pause Auto-Refresh</button>
             <button class="btn secondary" onclick="clearHighlights()">✨ Clear Highlights</button>
 
@@ -1107,7 +1106,9 @@
         // ==========================================
         // CONFIGURATION
         // ==========================================
-        const API_BASE_URL = 'https://bitcraft-market-proxy.jbaird-cb6.workers.dev';
+        // Supabase configuration - REPLACE THESE WITH YOUR OWN VALUES
+        const SUPABASE_URL = 'YOUR_SUPABASE_URL_HERE'; // e.g., https://your-project.supabase.co
+        const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY_HERE';
         const REFRESH_INTERVAL = 60000; // 1 minute (poll for changes)
 
         // ==========================================
@@ -1163,29 +1164,92 @@
         }
 
         // ==========================================
+        // SUPABASE HELPERS
+        // ==========================================
+        async function supabaseQuery(table, select = '*', filter = '', limit = null) {
+            let url = `${SUPABASE_URL}/rest/v1/${table}?select=${select}`;
+            if (filter) url += `&${filter}`;
+            if (limit) url += `&limit=${limit}`;
+
+            const response = await fetch(url, {
+                headers: {
+                    'apikey': SUPABASE_ANON_KEY,
+                    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`Supabase query failed: ${response.status}`);
+            }
+
+            return response.json();
+        }
+
+        async function getMarketState() {
+            // Fetch market items
+            const items = await supabaseQuery('market_items', '*', 'order=last_updated.desc');
+
+            // Fetch order details
+            const orderDetailsArray = await supabaseQuery('order_details', '*');
+
+            // Convert order details array to object keyed by item_id
+            const orderDetails = {};
+            orderDetailsArray.forEach(detail => {
+                orderDetails[detail.item_id] = {
+                    sellOrders: detail.sell_orders,
+                    buyOrders: detail.buy_orders,
+                    stats: detail.stats
+                };
+            });
+
+            // Fetch metadata
+            const metadata = await supabaseQuery('monitor_metadata', '*');
+            const metaObj = {};
+            metadata.forEach(m => { metaObj[m.key] = m.value; });
+
+            // Convert to expected format
+            const currentState = {
+                items: items.map(item => ({
+                    id: item.item_id,
+                    name: item.item_name,
+                    itemType: item.item_type,
+                    sellOrders: item.sell_orders,
+                    buyOrders: item.buy_orders,
+                    totalOrders: item.total_orders
+                })),
+                fetchedAt: metaObj.last_update || Date.now()
+            };
+
+            return {
+                currentState,
+                orderDetails,
+                lastUpdate: metaObj.last_update,
+                changeCount: metaObj.change_count || 0,
+                timestamp: Date.now()
+            };
+        }
+
+        async function getChanges(limit = 50) {
+            const changes = await supabaseQuery('market_changes', '*', 'order=timestamp.desc', limit);
+            return {
+                changes: changes.reverse(), // Reverse to show oldest first
+                total: changes.length,
+                timestamp: Date.now()
+            };
+        }
+
+        // ==========================================
         // DATA FETCHING
         // ==========================================
         async function refreshData() {
             try {
                 document.getElementById('refreshBtn').disabled = true;
 
-                // Fetch current state
-                const stateResponse = await fetch(`${API_BASE_URL}/api/monitor/state`);
+                // Fetch current state from Supabase
+                const stateData = await getMarketState();
 
-                if (!stateResponse.ok) {
-                    throw new Error(`Failed to fetch state: ${stateResponse.status}`);
-                }
-
-                const stateData = await stateResponse.json();
-
-                // Fetch recent changes
-                const changesResponse = await fetch(`${API_BASE_URL}/api/monitor/changes?limit=50`);
-
-                if (!changesResponse.ok) {
-                    throw new Error(`Failed to fetch changes: ${changesResponse.status}`);
-                }
-
-                const changesData = await changesResponse.json();
+                // Fetch recent changes from Supabase
+                const changesData = await getChanges(50);
 
                 // Store for filtering and extract claims
                 currentState = stateData.currentState;
@@ -1213,49 +1277,8 @@
             }
         }
 
-        async function triggerWorkerUpdate() {
-            try {
-                const btn = document.getElementById('triggerBtn');
-                btn.disabled = true;
-                btn.textContent = '⚡ Triggering...';
-
-                // Call the worker trigger endpoint
-                const response = await fetch(`${API_BASE_URL}/api/monitor/trigger`, {
-                    method: 'POST'
-                });
-
-                if (!response.ok) {
-                    throw new Error(`Failed to trigger worker: ${response.status}`);
-                }
-
-                const result = await response.json();
-                console.log('Worker triggered:', result);
-
-                // Show success message
-                btn.textContent = '✅ Triggered!';
-                setTimeout(() => {
-                    btn.textContent = '⚡ Trigger Worker Update';
-                }, 2000);
-
-                // Refresh data after a short delay to get the updated state
-                setTimeout(() => {
-                    refreshData();
-                }, 3000);
-
-            } catch (error) {
-                console.error('Error triggering worker:', error);
-                showError('Failed to trigger worker update: ' + error.message);
-                const btn = document.getElementById('triggerBtn');
-                btn.textContent = '❌ Failed';
-                setTimeout(() => {
-                    btn.textContent = '⚡ Trigger Worker Update';
-                }, 2000);
-            } finally {
-                setTimeout(() => {
-                    document.getElementById('triggerBtn').disabled = false;
-                }, 2000);
-            }
-        }
+        // triggerWorkerUpdate function removed - no longer needed with Supabase
+        // Data is updated by local-monitor.js running on your machine
 
         // ==========================================
         // UI UPDATES

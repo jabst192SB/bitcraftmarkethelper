@@ -18,11 +18,31 @@
 
 const fs = require('fs');
 const path = require('path');
+require('dotenv').config(); // Load .env file
+
+// Import Supabase client
+const SupabaseClient = require('./supabase-client.js').default;
 
 // Configuration
 const TARGET_API = 'https://bitjita.com';
 const MONITOR_REGION_ID = 4; // Solvenar
 const STATE_FILE = path.join(__dirname, 'local-monitor-state.json');
+
+// Initialize Supabase client
+let supabaseClient = null;
+try {
+  if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY) {
+    supabaseClient = new SupabaseClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_KEY
+    );
+    console.log('✓ Supabase client initialized');
+  } else {
+    console.warn('⚠ Supabase credentials not found in .env file');
+  }
+} catch (error) {
+  console.error('✗ Failed to initialize Supabase client:', error.message);
+}
 
 // In-memory state (loaded from file)
 let state = {
@@ -977,92 +997,101 @@ async function updateMarketDataBulk(options = {}) {
 }
 
 /**
- * Sync local data to Cloudflare Worker
- * Sends data in batches to avoid HTTP payload size limits
+ * Sync local data to Supabase
+ * Uploads market items, order details, and metadata
  */
-async function syncToWorker() {
-  const WORKER_URL = 'https://bitcraft-market-proxy.jbaird-cb6.workers.dev';
+async function syncToSupabase() {
+  console.log('\n=== Syncing to Supabase ===');
 
-  console.log('\n=== Syncing to Cloudflare Worker ===');
+  if (!supabaseClient) {
+    console.error('✗ Supabase client not initialized. Check your .env file.');
+    return false;
+  }
 
   if (!state.currentState || Object.keys(state.orderDetails).length === 0) {
     console.log('⚠ No data to sync. Run an update first.');
     return false;
   }
 
-  const totalItems = Object.keys(state.orderDetails).length;
-  console.log(`Uploading ${totalItems} item details in batches...`);
+  const totalItems = state.currentState.items.length;
+  const totalOrderDetails = Object.keys(state.orderDetails).length;
+  console.log(`Uploading ${totalItems} market items and ${totalOrderDetails} order details...`);
 
   try {
-    // Split order details into batches to avoid HTTP payload size limits
-    // Each batch: ~500 items or ~1MB of data (whichever comes first)
-    const BATCH_SIZE = 500;
+    // Step 1: Upsert market items (bulk)
+    console.log('\n  Step 1/3: Uploading market items...');
+    const marketItems = state.currentState.items.map(item => ({
+      item_id: item.id,
+      item_name: item.name,
+      item_type: item.itemType || 0,
+      sell_orders: item.sellOrders,
+      buy_orders: item.buyOrders,
+      total_orders: item.totalOrders,
+      last_updated: new Date().toISOString()
+    }));
+
+    await supabaseClient.upsertMarketItems(marketItems);
+    console.log(`  ✓ Uploaded ${marketItems.length} market items`);
+
+    // Step 2: Upsert order details in batches (100 at a time)
+    console.log('\n  Step 2/3: Uploading order details...');
+    const BATCH_SIZE = 100;
     const orderEntries = Object.entries(state.orderDetails);
     const numBatches = Math.ceil(orderEntries.length / BATCH_SIZE);
-
-    let totalChangesDetected = 0;
 
     for (let i = 0; i < numBatches; i++) {
       const batchStart = i * BATCH_SIZE;
       const batchEnd = Math.min((i + 1) * BATCH_SIZE, orderEntries.length);
       const batchEntries = orderEntries.slice(batchStart, batchEnd);
-      const batchDetails = Object.fromEntries(batchEntries);
 
-      // First batch includes market data, subsequent batches only have order details
-      const payload = {
-        marketData: i === 0 ? state.currentState : null,
-        orderDetails: batchDetails
-      };
+      const orderDetailsArray = batchEntries.map(([itemId, details]) => ({
+        item_id: parseInt(itemId),
+        sell_orders: details.sellOrders || [],
+        buy_orders: details.buyOrders || [],
+        stats: details.stats || {},
+        last_updated: new Date().toISOString()
+      }));
 
-      const batchSize = JSON.stringify(payload).length;
-      console.log(`  Batch ${i + 1}/${numBatches}: ${batchEntries.length} items (${(batchSize / 1024 / 1024).toFixed(2)} MB)`);
+      await supabaseClient.upsertOrderDetailsBulk(orderDetailsArray);
+      console.log(`  ✓ Batch ${i + 1}/${numBatches}: ${batchEntries.length} order details`);
 
-      const response = await fetch(`${WORKER_URL}/api/monitor/update`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`✗ Batch ${i + 1} failed: ${response.status} ${response.statusText}`);
-        console.error(`  Response: ${errorText}`);
-        return false;
-      }
-
-      const result = await response.json();
-      if (result.changesDetected > 0) {
-        totalChangesDetected += result.changesDetected;
-      }
-
-      // Small delay between batches to avoid overwhelming the worker
+      // Small delay between batches
       if (i < numBatches - 1) {
         await new Promise(resolve => setTimeout(resolve, 100));
       }
     }
 
-    console.log('✓ Upload successful!');
-    console.log(`  - Total items uploaded: ${totalItems}`);
-    console.log(`  - Batches sent: ${numBatches}`);
-    if (totalChangesDetected > 0) {
-      console.log(`  - Changes detected: ${totalChangesDetected}`);
-    }
+    // Step 3: Update metadata
+    console.log('\n  Step 3/3: Updating metadata...');
+    await supabaseClient.updateMetadata('last_update', state.lastUpdate || Date.now());
+    await supabaseClient.updateMetadata('change_count', state.changeCount || 0);
+    console.log(`  ✓ Updated metadata`);
+
+    console.log('\n✓ Sync to Supabase successful!');
+    console.log(`  - Market items: ${totalItems}`);
+    console.log(`  - Order details: ${totalOrderDetails}`);
+    console.log(`  - Total changes: ${state.changeCount}`);
 
     return true;
   } catch (error) {
-    console.error('✗ Error uploading to worker:', error.message);
+    console.error('✗ Error syncing to Supabase:', error.message);
+    console.error('  Stack:', error.stack);
     return false;
   }
 }
 
+// Keep legacy function for backwards compatibility (redirects to Supabase)
+async function syncToWorker() {
+  console.warn('⚠ syncToWorker() is deprecated. Using syncToSupabase() instead.');
+  return syncToSupabase();
+}
+
 /**
- * Initial setup mode - fetch all items and sync to worker
+ * Initial setup mode - fetch all items and sync to Supabase
  */
 async function setupMode() {
   console.log('\n=== Initial Setup Mode ===');
-  console.log('This will fetch ALL market items and upload to Cloudflare Worker.');
+  console.log('This will fetch ALL market items and upload to Supabase.');
   console.log('Estimated time: 15-20 minutes\n');
 
   const startTime = Date.now();
@@ -1141,9 +1170,9 @@ async function setupMode() {
     state.lastUpdate = Date.now();
     saveState();
 
-    // Step 4: Sync to worker
-    console.log('\nStep 3: Syncing to Cloudflare Worker...');
-    const syncSuccess = await syncToWorker();
+    // Step 4: Sync to Supabase
+    console.log('\nStep 3: Syncing to Supabase...');
+    const syncSuccess = await syncToSupabase();
 
     const totalTime = Math.round((Date.now() - startTime) / 1000);
 
@@ -1190,9 +1219,9 @@ async function monitorMode(intervalSeconds = 120) {
       // Use bulk API to detect changes quickly
       await updateMarketDataBulk({ maxDetailsFetch: 200 });
 
-      // Sync to worker
-      console.log('\nSyncing to worker...');
-      await syncToWorker();
+      // Sync to Supabase
+      console.log('\nSyncing to Supabase...');
+      await syncToSupabase();
 
       console.log(`\n✓ Update complete. Next check in ${intervalSeconds}s`);
     } catch (error) {
@@ -1279,7 +1308,7 @@ async function main() {
         break;
 
       case 'sync':
-        await syncToWorker();
+        await syncToSupabase();
         break;
 
       case 'state':

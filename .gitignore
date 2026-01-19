@@ -16,3 +16,6 @@ start-server.bat
 
 # Temporary test files
 3020003.json
+
+# Environment variables (contains secrets)
+.env
