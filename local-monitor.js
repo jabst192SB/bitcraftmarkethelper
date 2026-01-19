@@ -1020,29 +1020,51 @@ async function syncToSupabase() {
   try {
     // Step 1: Upsert market items (bulk)
     console.log('\n  Step 1/3: Uploading market items...');
-    const marketItems = state.currentState.items.map(item => ({
-      item_id: item.id,
-      item_name: item.name,
-      item_type: item.itemType || 0,
-      sell_orders: item.sellOrders,
-      buy_orders: item.buyOrders,
-      total_orders: item.totalOrders,
-      last_updated: new Date().toISOString()
-    }));
+
+    // Deduplicate items by item_id (keep last occurrence)
+    const itemsMap = new Map();
+    state.currentState.items.forEach(item => {
+      itemsMap.set(item.id, {
+        item_id: item.id,
+        item_name: item.name,
+        item_type: item.itemType || 0,
+        sell_orders: item.sellOrders,
+        buy_orders: item.buyOrders,
+        total_orders: item.totalOrders,
+        last_updated: new Date().toISOString()
+      });
+    });
+
+    const marketItems = Array.from(itemsMap.values());
+    if (marketItems.length < state.currentState.items.length) {
+      console.log(`  Deduplicated: ${state.currentState.items.length} → ${marketItems.length} unique items`);
+    }
 
     await supabaseClient.upsertMarketItems(marketItems);
     console.log(`  ✓ Uploaded ${marketItems.length} market items`);
 
     // Step 2: Upsert order details in batches (100 at a time)
     console.log('\n  Step 2/3: Uploading order details...');
+
+    // Filter order details to only include items that exist in market_items
+    const marketItemIds = new Set(marketItems.map(item => item.item_id));
+    const filteredOrderEntries = Object.entries(state.orderDetails).filter(([itemId]) => {
+      const numericId = parseInt(itemId);
+      return marketItemIds.has(numericId);
+    });
+
+    if (filteredOrderEntries.length < Object.keys(state.orderDetails).length) {
+      const skipped = Object.keys(state.orderDetails).length - filteredOrderEntries.length;
+      console.log(`  Filtered out ${skipped} orphaned order details (items no longer have orders)`);
+    }
+
     const BATCH_SIZE = 100;
-    const orderEntries = Object.entries(state.orderDetails);
-    const numBatches = Math.ceil(orderEntries.length / BATCH_SIZE);
+    const numBatches = Math.ceil(filteredOrderEntries.length / BATCH_SIZE);
 
     for (let i = 0; i < numBatches; i++) {
       const batchStart = i * BATCH_SIZE;
-      const batchEnd = Math.min((i + 1) * BATCH_SIZE, orderEntries.length);
-      const batchEntries = orderEntries.slice(batchStart, batchEnd);
+      const batchEnd = Math.min((i + 1) * BATCH_SIZE, filteredOrderEntries.length);
+      const batchEntries = filteredOrderEntries.slice(batchStart, batchEnd);
 
       const orderDetailsArray = batchEntries.map(([itemId, details]) => ({
         item_id: parseInt(itemId),

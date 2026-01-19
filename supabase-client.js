@@ -25,7 +25,7 @@ class SupabaseClient {
   /**
    * Make HTTP request to Supabase REST API
    */
-  async request(method, path, body = null) {
+  async request(method, path, body = null, extraHeaders = {}) {
     const url = new URL(`${this.supabaseUrl}${path}`);
     const isHttps = url.protocol === 'https:';
     const client = isHttps ? https : http;
@@ -36,7 +36,7 @@ class SupabaseClient {
         port: url.port || (isHttps ? 443 : 80),
         path: url.pathname + url.search,
         method: method,
-        headers: this.headers
+        headers: { ...this.headers, ...extraHeaders }
       };
 
       const req = client.request(options, (res) => {
@@ -76,7 +76,10 @@ class SupabaseClient {
    */
   async upsertMarketItems(items) {
     const path = '/rest/v1/market_items';
-    return this.request('POST', path, items);
+    // Add Prefer header for upsert (on conflict, update)
+    return this.request('POST', path, items, {
+      'Prefer': 'resolution=merge-duplicates'
+    });
   }
 
   /**
@@ -91,7 +94,9 @@ class SupabaseClient {
       stats: details.stats || {},
       last_updated: new Date().toISOString()
     };
-    return this.request('POST', path, body);
+    return this.request('POST', path, body, {
+      'Prefer': 'resolution=merge-duplicates'
+    });
   }
 
   /**
@@ -99,7 +104,9 @@ class SupabaseClient {
    */
   async upsertOrderDetailsBulk(orderDetailsArray) {
     const path = '/rest/v1/order_details';
-    return this.request('POST', path, orderDetailsArray);
+    return this.request('POST', path, orderDetailsArray, {
+      'Prefer': 'resolution=merge-duplicates'
+    });
   }
 
   /**
@@ -161,7 +168,9 @@ class SupabaseClient {
       value: value,
       updated_at: new Date().toISOString()
     };
-    return this.request('POST', path, body);
+    return this.request('POST', path, body, {
+      'Prefer': 'resolution=merge-duplicates'
+    });
   }
 
   /**
