@@ -1281,9 +1281,10 @@ async function watchMode(intervalSeconds = 60) {
 /**
  * Reset state
  */
-function resetState() {
+async function resetState() {
   console.log('\n=== Reset State ===');
 
+  // Reset in-memory state
   state = {
     currentState: null,
     orderDetails: {},
@@ -1292,12 +1293,56 @@ function resetState() {
     lastUpdate: null
   };
 
+  // Delete local state file
   if (fs.existsSync(STATE_FILE)) {
     fs.unlinkSync(STATE_FILE);
-    console.log('✓ Deleted state file');
+    console.log('✓ Deleted local state file');
   }
 
-  console.log('✓ State reset complete');
+  // Clear Supabase database if client is available
+  if (supabaseClient) {
+    try {
+      console.log('\n🗑️  Clearing Supabase database...');
+
+      // Use the REST API to delete all data
+      // Supabase requires a filter to delete records - we'll use a condition that matches all
+      // Delete in order due to foreign key constraints: changes, order_details, market_items
+
+      // 1. Delete all market changes (id >= 0 matches all records)
+      await supabaseClient.request('DELETE', '/rest/v1/market_changes?id=gte.0', null, {
+        'Prefer': 'return=minimal'
+      });
+      console.log('  ✓ Cleared market_changes table');
+
+      // 2. Delete all order details (item_id >= 0 matches all records)
+      await supabaseClient.request('DELETE', '/rest/v1/order_details?item_id=gte.0', null, {
+        'Prefer': 'return=minimal'
+      });
+      console.log('  ✓ Cleared order_details table');
+
+      // 3. Delete all market items (item_id >= 0 matches all records)
+      await supabaseClient.request('DELETE', '/rest/v1/market_items?item_id=gte.0', null, {
+        'Prefer': 'return=minimal'
+      });
+      console.log('  ✓ Cleared market_items table');
+
+      // 4. Reset metadata
+      await supabaseClient.updateMetadata('last_update', null);
+      await supabaseClient.updateMetadata('change_count', 0);
+      console.log('  ✓ Reset metadata');
+
+      console.log('\n✅ Supabase database cleared successfully');
+    } catch (error) {
+      console.error('⚠️  Error clearing Supabase database:', error.message);
+      console.error('   You may need to manually clear the database using SQL:');
+      console.error('   TRUNCATE TABLE market_changes, order_details, market_items CASCADE;');
+    }
+  } else {
+    console.log('\n⚠️  Supabase client not initialized - skipping database clear');
+    console.log('   Only local state file was deleted');
+  }
+
+  console.log('\n✓ Reset complete');
 }
 
 /**
@@ -1351,7 +1396,7 @@ async function main() {
         break;
 
       case 'reset':
-        resetState();
+        await resetState();
         break;
 
       case 'debug':
@@ -1384,7 +1429,7 @@ Commands:
     changes [limit]         Show recent changes (default: 50)
     watch [interval]        Continuously monitor locally (default: 60s, no sync)
     debug <claim>           Debug orders for a specific claim name
-    reset                   Reset all stored data
+    reset                   Reset ALL data (local cache + Supabase database)
     help                    Show this help message
 
 Options:
