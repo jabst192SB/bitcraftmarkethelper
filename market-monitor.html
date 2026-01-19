@@ -1213,6 +1213,11 @@
                     id: item.item_id,
                     name: item.item_name,
                     itemType: item.item_type,
+                    tier: item.tier || 0,
+                    rarity: item.rarity || '',
+                    rarityStr: item.rarity || '',
+                    category: item.category || '',
+                    tag: item.category || '',
                     sellOrders: item.sell_orders,
                     buyOrders: item.buy_orders,
                     totalOrders: item.total_orders
@@ -1302,11 +1307,13 @@
             // Use current order details from state endpoint
             if (!currentOrderDetails || Object.keys(currentOrderDetails).length === 0) return;
 
-            // Get item data from current state
+            // Build item data map from currentState.items
             const itemData = new Map();
             if (currentState && currentState.items) {
                 currentState.items.forEach(item => {
-                    itemData.set(item.id, {
+                    // Use both numeric and string keys to ensure we can find items
+                    const itemKey = typeof item.id === 'number' ? item.id : parseInt(item.id);
+                    itemData.set(itemKey, {
                         name: item.name,
                         tier: item.tier,
                         rarity: item.rarityStr || item.rarity,
@@ -1317,7 +1324,8 @@
 
             // Group orders by claim, then by item+price
             Object.entries(currentOrderDetails).forEach(([itemId, orderDetails]) => {
-                const item = itemData.get(parseInt(itemId)) || itemData.get(itemId) || {
+                const itemIdNum = typeof itemId === 'number' ? itemId : parseInt(itemId);
+                const item = itemData.get(itemIdNum) || {
                     name: `Item ${itemId}`,
                     tier: 0,
                     rarity: 'Unknown',
