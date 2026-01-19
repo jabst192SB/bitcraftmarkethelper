@@ -50,13 +50,17 @@ export class MarketMonitor {
    * Get current market state
    */
   async getState() {
-    const currentState = await this.state.storage.get('currentState');
-    const orderDetails = await this.state.storage.get('orderDetails') || {};
     const lastUpdate = await this.state.storage.get('lastUpdate');
     const changeCount = await this.state.storage.get('changeCount') || 0;
 
+    // Reconstruct currentState from chunks
+    const currentState = await this.reconstructCurrentState();
+
+    // Reconstruct orderDetails from individual item entries
+    const orderDetails = await this.reconstructOrderDetails();
+
     return new Response(JSON.stringify({
-      currentState: currentState || null,
+      currentState: currentState,
       orderDetails: orderDetails,
       lastUpdate: lastUpdate || null,
       changeCount: changeCount,
@@ -64,6 +68,57 @@ export class MarketMonitor {
     }), {
       headers: { 'Content-Type': 'application/json' }
     });
+  }
+
+  /**
+   * Reconstruct currentState from chunked storage
+   */
+  async reconstructCurrentState() {
+    const meta = await this.state.storage.get('currentStateMeta');
+    if (!meta) {
+      // Try old storage format for backward compatibility
+      const oldState = await this.state.storage.get('currentState');
+      return oldState || null;
+    }
+
+    // Get all item chunks
+    const itemChunks = await this.state.storage.list({ prefix: 'items_chunk_' });
+    const items = [];
+
+    // Sort chunks by index
+    const sortedChunks = Array.from(itemChunks.entries()).sort((a, b) => {
+      const aIndex = parseInt(a[0].substring(12)); // Remove 'items_chunk_' prefix
+      const bIndex = parseInt(b[0].substring(12));
+      return aIndex - bIndex;
+    });
+
+    // Reconstruct items array
+    for (const [, chunk] of sortedChunks) {
+      items.push(...chunk);
+    }
+
+    return {
+      items: items,
+      fetchedAt: meta.fetchedAt
+    };
+  }
+
+  /**
+   * Reconstruct orderDetails from individual item storage entries
+   */
+  async reconstructOrderDetails() {
+    const orderDetails = {};
+
+    // Get all keys that start with 'order_'
+    const allKeys = await this.state.storage.list({ prefix: 'order_' });
+
+    for (const [key, value] of allKeys) {
+      // Extract item ID from key (format: 'order_<itemId>')
+      const itemId = key.substring(6); // Remove 'order_' prefix
+      orderDetails[itemId] = value;
+    }
+
+    return orderDetails;
   }
 
   /**
@@ -87,8 +142,8 @@ export class MarketMonitor {
    * @param {Object} orderDetails - Optional order details keyed by item ID
    */
   async updateState(newData, orderDetails = {}) {
-    const previousState = await this.state.storage.get('currentState');
-    const previousOrderDetails = await this.state.storage.get('orderDetails') || {};
+    const previousState = await this.reconstructCurrentState();
+    const previousOrderDetails = await this.reconstructOrderDetails();
     const changes = await this.state.storage.get('changes') || [];
     let changeCount = await this.state.storage.get('changeCount') || 0;
 
@@ -101,28 +156,21 @@ export class MarketMonitor {
         const currentDetails = orderDetails[change.itemId];
         const prevDetails = previousOrderDetails[change.itemId];
 
-        // Build base change object
+        // Build base change object with MINIMAL data (don't store full orders in changes array)
         const enhancedChange = { ...change };
 
         if (currentDetails) {
           // Diff individual orders to find added/removed
           const orderDiff = this.diffOrders(prevDetails, currentDetails);
 
-          enhancedChange.orderDetails = {
-            sellOrders: currentDetails.sellOrders || [],
-            buyOrders: currentDetails.buyOrders || [],
-            stats: currentDetails.stats || {}
-          };
+          // Store only added/removed orders, not all orders
           enhancedChange.addedOrders = orderDiff.added;
           enhancedChange.removedOrders = orderDiff.removed;
           enhancedChange.hasDetailedOrders = true;
+          // Store minimal stats only
+          enhancedChange.stats = currentDetails.stats || {};
         } else if (prevDetails) {
-          // We have previous details but not current - use previous as fallback
-          enhancedChange.orderDetails = {
-            sellOrders: prevDetails.sellOrders || [],
-            buyOrders: prevDetails.buyOrders || [],
-            stats: prevDetails.stats || {}
-          };
+          // We have previous details but not current - minimal fallback
           enhancedChange.addedOrders = { sellOrders: [], buyOrders: [] };
           enhancedChange.removedOrders = { sellOrders: [], buyOrders: [] };
           enhancedChange.hasDetailedOrders = false;
@@ -135,15 +183,36 @@ export class MarketMonitor {
         return enhancedChange;
       });
 
-      // Add changes to history
-      const changeEntry = {
-        timestamp: Date.now(),
-        changes: changesWithOrders
-      };
-      changes.push(changeEntry);
+      // For initial bulk sync (many changes), store individually to avoid size limits
+      if (changesWithOrders.length > 100) {
+        console.log(`Large sync detected (${changesWithOrders.length} changes), storing individually`);
+
+        // Store as individual change entries to avoid hitting row size limits
+        const timestamp = Date.now();
+        const changeEntries = [];
+
+        // Split into chunks of 50 changes per entry
+        for (let i = 0; i < changesWithOrders.length; i += 50) {
+          const chunk = changesWithOrders.slice(i, i + 50);
+          changeEntries.push({
+            timestamp: timestamp,
+            changes: chunk
+          });
+        }
+
+        // Add all chunks to changes array
+        changes.push(...changeEntries);
+      } else {
+        // Normal case: single change entry
+        const changeEntry = {
+          timestamp: Date.now(),
+          changes: changesWithOrders
+        };
+        changes.push(changeEntry);
+      }
 
       // Keep only last 1000 change entries
-      if (changes.length > 1000) {
+      while (changes.length > 1000) {
         changes.shift();
       }
 
@@ -154,10 +223,52 @@ export class MarketMonitor {
       await this.state.storage.put('changeCount', changeCount);
     }
 
-    // Update current state and order details
-    await this.state.storage.put('currentState', newData);
-    await this.state.storage.put('orderDetails', orderDetails);
+    // Update current state
+    // Store metadata separately from the large items array
+    const currentStateMeta = {
+      fetchedAt: newData.fetchedAt,
+      itemCount: newData.items?.length || 0
+    };
+    await this.state.storage.put('currentStateMeta', currentStateMeta);
+
+    // Store items list in chunks to avoid size limits
+    // Split into chunks of 500 items each
+    const items = newData.items || [];
+    const ITEMS_PER_CHUNK = 500;
+    const numChunks = Math.ceil(items.length / ITEMS_PER_CHUNK);
+
+    // Clear old item chunks
+    const oldItemChunks = await this.state.storage.list({ prefix: 'items_chunk_' });
+    for (const [key] of oldItemChunks) {
+      await this.state.storage.delete(key);
+    }
+
+    // Store new chunks
+    for (let i = 0; i < numChunks; i++) {
+      const chunk = items.slice(i * ITEMS_PER_CHUNK, (i + 1) * ITEMS_PER_CHUNK);
+      await this.state.storage.put(`items_chunk_${i}`, chunk);
+    }
+
     await this.state.storage.put('lastUpdate', Date.now());
+
+    // Store order details individually to avoid SQLite row size limits
+    // Delete old entries that are no longer in the new data
+    const existingKeys = await this.state.storage.list({ prefix: 'order_' });
+    const newItemIds = new Set(Object.keys(orderDetails));
+
+    for (const [key] of existingKeys) {
+      const itemId = key.substring(6); // Remove 'order_' prefix
+      if (!newItemIds.has(itemId) && !newItemIds.has(String(itemId))) {
+        await this.state.storage.delete(key);
+      }
+    }
+
+    // Store each item's order details separately
+    const putOperations = {};
+    for (const [itemId, details] of Object.entries(orderDetails)) {
+      putOperations[`order_${itemId}`] = details;
+    }
+    await this.state.storage.put(putOperations);
 
     return new Response(JSON.stringify({
       success: true,

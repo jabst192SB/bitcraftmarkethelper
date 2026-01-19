@@ -28,6 +28,7 @@ tag = "v1"
 new_classes = ["MarketMonitor"]
 
 # Scheduled Events (Cron Triggers)
-# Polls the market API every minute (for testing)
-[triggers]
-crons = ["*/1 * * * *"]
+# Disabled - using external cron-job.org service instead
+# Free tier has CPU limits that cause failures
+# [triggers]
+# crons = ["*/5 * * * *"]
