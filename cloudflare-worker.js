@@ -208,8 +208,8 @@ export class MarketMonitor {
     const changes = await this.reconstructChanges();
     let changeCount = await this.state.storage.get('changeCount') || 0;
 
-    // Detect changes
-    const detectedChanges = this.detectChanges(previousState, newData);
+    // Detect changes only if we have new market data
+    const detectedChanges = newData ? this.detectChanges(previousState, newData) : [];
 
     if (detectedChanges.length > 0) {
       // Attach order details and diff individual orders
@@ -284,45 +284,40 @@ export class MarketMonitor {
       await this.state.storage.put('changeCount', changeCount);
     }
 
-    // Update current state
-    // Store metadata separately from the large items array
-    const currentStateMeta = {
-      fetchedAt: newData.fetchedAt,
-      itemCount: newData.items?.length || 0
-    };
-    await this.state.storage.put('currentStateMeta', currentStateMeta);
+    // Update current state only if newData is provided
+    if (newData) {
+      // Store metadata separately from the large items array
+      const currentStateMeta = {
+        fetchedAt: newData.fetchedAt,
+        itemCount: newData.items?.length || 0
+      };
+      await this.state.storage.put('currentStateMeta', currentStateMeta);
 
-    // Store items list in chunks to avoid size limits
-    // Split into chunks of 500 items each
-    const items = newData.items || [];
-    const ITEMS_PER_CHUNK = 500;
-    const numChunks = Math.ceil(items.length / ITEMS_PER_CHUNK);
+      // Store items list in chunks to avoid size limits
+      // Split into chunks of 500 items each
+      const items = newData.items || [];
+      const ITEMS_PER_CHUNK = 500;
+      const numChunks = Math.ceil(items.length / ITEMS_PER_CHUNK);
 
-    // Clear old item chunks
-    const oldItemChunks = await this.state.storage.list({ prefix: 'items_chunk_' });
-    for (const [key] of oldItemChunks) {
-      await this.state.storage.delete(key);
-    }
-
-    // Store new chunks
-    for (let i = 0; i < numChunks; i++) {
-      const chunk = items.slice(i * ITEMS_PER_CHUNK, (i + 1) * ITEMS_PER_CHUNK);
-      await this.state.storage.put(`items_chunk_${i}`, chunk);
-    }
-
-    await this.state.storage.put('lastUpdate', Date.now());
-
-    // Store order details individually to avoid SQLite row size limits
-    // Delete old entries that are no longer in the new data
-    const existingKeys = await this.state.storage.list({ prefix: 'order_' });
-    const newItemIds = new Set(Object.keys(orderDetails));
-
-    for (const [key] of existingKeys) {
-      const itemId = key.substring(6); // Remove 'order_' prefix
-      if (!newItemIds.has(itemId) && !newItemIds.has(String(itemId))) {
+      // Clear old item chunks
+      const oldItemChunks = await this.state.storage.list({ prefix: 'items_chunk_' });
+      for (const [key] of oldItemChunks) {
         await this.state.storage.delete(key);
       }
+
+      // Store new chunks
+      for (let i = 0; i < numChunks; i++) {
+        const chunk = items.slice(i * ITEMS_PER_CHUNK, (i + 1) * ITEMS_PER_CHUNK);
+        await this.state.storage.put(`items_chunk_${i}`, chunk);
+      }
+
+      await this.state.storage.put('lastUpdate', Date.now());
     }
+
+    // Store order details individually to avoid SQLite row size limits
+    // Note: We no longer delete old entries automatically during updates.
+    // This allows for batched uploads where subsequent batches don't delete
+    // entries from previous batches. Cleanup should be done explicitly if needed.
 
     // Store each item's order details separately
     // Individual order details must be stored one at a time to avoid exceeding

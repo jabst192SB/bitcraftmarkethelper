@@ -978,6 +978,7 @@ async function updateMarketDataBulk(options = {}) {
 
 /**
  * Sync local data to Cloudflare Worker
+ * Sends data in batches to avoid HTTP payload size limits
  */
 async function syncToWorker() {
   const WORKER_URL = 'https://bitcraft-market-proxy.jbaird-cb6.workers.dev';
@@ -989,36 +990,64 @@ async function syncToWorker() {
     return false;
   }
 
-  const payload = {
-    marketData: state.currentState,
-    orderDetails: state.orderDetails
-  };
-
-  console.log(`Uploading ${Object.keys(state.orderDetails).length} item details...`);
+  const totalItems = Object.keys(state.orderDetails).length;
+  console.log(`Uploading ${totalItems} item details in batches...`);
 
   try {
-    const response = await fetch(`${WORKER_URL}/api/monitor/update`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
+    // Split order details into batches to avoid HTTP payload size limits
+    // Each batch: ~500 items or ~1MB of data (whichever comes first)
+    const BATCH_SIZE = 500;
+    const orderEntries = Object.entries(state.orderDetails);
+    const numBatches = Math.ceil(orderEntries.length / BATCH_SIZE);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`✗ Upload failed: ${response.status} ${response.statusText}`);
-      console.error(`  Response: ${errorText}`);
-      return false;
+    let totalChangesDetected = 0;
+
+    for (let i = 0; i < numBatches; i++) {
+      const batchStart = i * BATCH_SIZE;
+      const batchEnd = Math.min((i + 1) * BATCH_SIZE, orderEntries.length);
+      const batchEntries = orderEntries.slice(batchStart, batchEnd);
+      const batchDetails = Object.fromEntries(batchEntries);
+
+      // First batch includes market data, subsequent batches only have order details
+      const payload = {
+        marketData: i === 0 ? state.currentState : null,
+        orderDetails: batchDetails
+      };
+
+      const batchSize = JSON.stringify(payload).length;
+      console.log(`  Batch ${i + 1}/${numBatches}: ${batchEntries.length} items (${(batchSize / 1024 / 1024).toFixed(2)} MB)`);
+
+      const response = await fetch(`${WORKER_URL}/api/monitor/update`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`✗ Batch ${i + 1} failed: ${response.status} ${response.statusText}`);
+        console.error(`  Response: ${errorText}`);
+        return false;
+      }
+
+      const result = await response.json();
+      if (result.changesDetected > 0) {
+        totalChangesDetected += result.changesDetected;
+      }
+
+      // Small delay between batches to avoid overwhelming the worker
+      if (i < numBatches - 1) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
     }
 
-    const result = await response.json();
-
     console.log('✓ Upload successful!');
-    console.log(`  - Items tracked: ${result.itemCount || 0}`);
-    console.log(`  - Order details: ${result.orderDetailsCount || 0}`);
-    if (result.changesDetected > 0) {
-      console.log(`  - Changes detected: ${result.changesDetected}`);
+    console.log(`  - Total items uploaded: ${totalItems}`);
+    console.log(`  - Batches sent: ${numBatches}`);
+    if (totalChangesDetected > 0) {
+      console.log(`  - Changes detected: ${totalChangesDetected}`);
     }
 
     return true;
