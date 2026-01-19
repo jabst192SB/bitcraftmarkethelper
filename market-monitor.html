@@ -1053,6 +1053,18 @@
                     Sell Orders
                 </label>
             </div>
+
+            <div class="order-type-filters">
+                <span class="filter-label">Min Hex:</span>
+                <input type="number"
+                       id="minHexFilter"
+                       placeholder="0"
+                       min="0"
+                       step="1"
+                       style="width: 120px; padding: 8px; background-color: #3a3a3a; border: 1px solid #4a4a4a; border-radius: 4px; color: #e0e0e0; font-size: 13px;"
+                       oninput="applyMinHexFilter()">
+                <button class="claim-filter-clear" id="minHexClear" onclick="clearMinHexFilter()" style="display: none; position: static; transform: none; margin: 0 0 0 5px;">✕</button>
+            </div>
         </div>
 
         <div id="errorContainer"></div>
@@ -1357,6 +1369,10 @@
             // Get item filter
             const itemFilter = document.getElementById('itemFilterInput')?.value.toLowerCase() || '';
 
+            // Get minimum hex filter
+            const minHexInput = document.getElementById('minHexFilter')?.value || '';
+            const minHex = minHexInput ? parseFloat(minHexInput) : 0;
+
             // Filter by selected claim if applicable
             let claimsToRender = Array.from(claimOrdersMap.entries());
 
@@ -1378,6 +1394,9 @@
                         // Apply order type filter
                         if (group.type === 'buy' && !showBuyOrders) return false;
                         if (group.type === 'sell' && !showSellOrders) return false;
+
+                        // Apply minimum hex filter
+                        if (minHex > 0 && group.price < minHex) return false;
 
                         // Apply item name/category filter
                         if (itemFilter) {
@@ -1414,6 +1433,9 @@
                 const filteredGroups = Array.from(claimData.orderGroups.values()).filter(group => {
                     if (group.type === 'buy' && !showBuyOrders) return false;
                     if (group.type === 'sell' && !showSellOrders) return false;
+
+                    // Apply minimum hex filter
+                    if (minHex > 0 && group.price < minHex) return false;
 
                     // Apply item name/category filter
                     if (itemFilter) {
@@ -2071,6 +2093,31 @@
             const input = document.getElementById('itemFilterInput');
             input.value = '';
             applyItemFilter();
+        }
+
+        // ==========================================
+        // MIN HEX FILTER
+        // ==========================================
+        function applyMinHexFilter() {
+            const input = document.getElementById('minHexFilter');
+            const clearBtn = document.getElementById('minHexClear');
+
+            if (input.value && parseFloat(input.value) > 0) {
+                clearBtn.style.display = 'inline-block';
+            } else {
+                clearBtn.style.display = 'none';
+            }
+
+            // Re-render table with filter applied
+            if (currentState) {
+                updateMarketTable({ currentState });
+            }
+        }
+
+        function clearMinHexFilter() {
+            const input = document.getElementById('minHexFilter');
+            input.value = '';
+            applyMinHexFilter();
         }
 
         // ==========================================
