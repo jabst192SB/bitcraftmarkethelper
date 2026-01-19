@@ -125,7 +125,7 @@ export class MarketMonitor {
    * Get recent changes
    */
   async getChanges(limit = 50) {
-    const changes = await this.state.storage.get('changes') || [];
+    const changes = await this.reconstructChanges();
 
     return new Response(JSON.stringify({
       changes: changes.slice(-limit),
@@ -137,6 +137,67 @@ export class MarketMonitor {
   }
 
   /**
+   * Store changes array in chunks to avoid SQLite size limits
+   */
+  async storeChangesChunked(changes) {
+    const CHANGES_PER_CHUNK = 100; // Store 100 change entries per chunk
+    const numChunks = Math.ceil(changes.length / CHANGES_PER_CHUNK);
+
+    // Clear old change chunks
+    const oldChangeChunks = await this.state.storage.list({ prefix: 'changes_chunk_' });
+    for (const [key] of oldChangeChunks) {
+      await this.state.storage.delete(key);
+    }
+
+    // Store new chunks
+    for (let i = 0; i < numChunks; i++) {
+      const chunk = changes.slice(i * CHANGES_PER_CHUNK, (i + 1) * CHANGES_PER_CHUNK);
+      await this.state.storage.put(`changes_chunk_${i}`, chunk);
+    }
+
+    // Store metadata
+    await this.state.storage.put('changesMeta', {
+      totalEntries: changes.length,
+      numChunks: numChunks
+    });
+  }
+
+  /**
+   * Reconstruct changes array from chunks
+   */
+  async reconstructChanges() {
+    const meta = await this.state.storage.get('changesMeta');
+    if (!meta) {
+      // Try old storage format for backward compatibility
+      const oldChanges = await this.state.storage.get('changes');
+      if (oldChanges) {
+        // Migrate to new format
+        await this.storeChangesChunked(oldChanges);
+        return oldChanges;
+      }
+      return [];
+    }
+
+    // Get all change chunks
+    const changeChunks = await this.state.storage.list({ prefix: 'changes_chunk_' });
+    const changes = [];
+
+    // Sort chunks by index
+    const sortedChunks = Array.from(changeChunks.entries()).sort((a, b) => {
+      const aIndex = parseInt(a[0].substring(14)); // Remove 'changes_chunk_' prefix
+      const bIndex = parseInt(b[0].substring(14));
+      return aIndex - bIndex;
+    });
+
+    // Reconstruct changes array
+    for (const [, chunk] of sortedChunks) {
+      changes.push(...chunk);
+    }
+
+    return changes;
+  }
+
+  /**
    * Update state with new market data and detect changes
    * @param {Object} newData - Market data with items array
    * @param {Object} orderDetails - Optional order details keyed by item ID
@@ -144,7 +205,7 @@ export class MarketMonitor {
   async updateState(newData, orderDetails = {}) {
     const previousState = await this.reconstructCurrentState();
     const previousOrderDetails = await this.reconstructOrderDetails();
-    const changes = await this.state.storage.get('changes') || [];
+    const changes = await this.reconstructChanges();
     let changeCount = await this.state.storage.get('changeCount') || 0;
 
     // Detect changes
@@ -218,8 +279,8 @@ export class MarketMonitor {
 
       changeCount += detectedChanges.length;
 
-      // Save to storage
-      await this.state.storage.put('changes', changes);
+      // Save to storage - chunk the changes array to avoid size limits
+      await this.storeChangesChunked(changes);
       await this.state.storage.put('changeCount', changeCount);
     }
 
@@ -264,11 +325,31 @@ export class MarketMonitor {
     }
 
     // Store each item's order details separately
-    const putOperations = {};
-    for (const [itemId, details] of Object.entries(orderDetails)) {
-      putOperations[`order_${itemId}`] = details;
+    // Individual order details must be stored one at a time to avoid exceeding
+    // the 128KB per-value SQLite limit (some items have 100+ orders)
+    const orderEntries = Object.entries(orderDetails);
+    let storedCount = 0;
+    let skippedCount = 0;
+
+    for (const [itemId, details] of orderEntries) {
+      try {
+        // Check size before storing
+        const detailsSize = JSON.stringify(details).length;
+        if (detailsSize > 120000) { // 120KB limit to be safe
+          console.warn(`Order details for item ${itemId} too large (${detailsSize} bytes), skipping`);
+          skippedCount++;
+          continue;
+        }
+
+        await this.state.storage.put(`order_${itemId}`, details);
+        storedCount++;
+      } catch (error) {
+        console.error(`Failed to store order details for item ${itemId}:`, error.message);
+        skippedCount++;
+      }
     }
-    await this.state.storage.put(putOperations);
+
+    console.log(`Stored ${storedCount} order details, skipped ${skippedCount}`);
 
     return new Response(JSON.stringify({
       success: true,
