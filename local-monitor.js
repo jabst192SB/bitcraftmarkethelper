@@ -1086,8 +1086,25 @@ async function syncToSupabase() {
       }
     }
 
-    // Step 3: Update metadata
-    console.log('\n  Step 3/3: Updating metadata...');
+    // Step 3: Upload change history
+    console.log('\n  Step 3/4: Uploading change history...');
+    if (state.changes && state.changes.length > 0) {
+      // Clear existing changes first to avoid duplicates
+      await supabaseClient.request('DELETE', '/rest/v1/market_changes?id=gte.0', null, {
+        'Prefer': 'return=minimal'
+      });
+
+      // Upload each change entry
+      for (const changeEntry of state.changes) {
+        await supabaseClient.insertChange(changeEntry.changes);
+      }
+      console.log(`  ✓ Uploaded ${state.changes.length} change entries`);
+    } else {
+      console.log(`  ✓ No changes to upload`);
+    }
+
+    // Step 4: Update metadata
+    console.log('\n  Step 4/4: Updating metadata...');
     await supabaseClient.updateMetadata('last_update', state.lastUpdate || Date.now());
     await supabaseClient.updateMetadata('change_count', state.changeCount || 0);
     console.log(`  ✓ Updated metadata`);
@@ -1095,6 +1112,7 @@ async function syncToSupabase() {
     console.log('\n✓ Sync to Supabase successful!');
     console.log(`  - Market items: ${totalItems}`);
     console.log(`  - Order details: ${totalOrderDetails}`);
+    console.log(`  - Change entries: ${state.changes?.length || 0}`);
     console.log(`  - Total changes: ${state.changeCount}`);
 
     return true;
