@@ -706,6 +706,7 @@
         </h1>
 
         <div class="nav-links">
+            <a href="dashboard.html">📊 Dashboard</a>
             <a href="index.html">← Back to Market Search</a>
             <a href="market-monitor.html">📊 Market Monitor</a>
             <a href="help.html" class="help-link">📚 Help & FAQ</a>
@@ -796,11 +797,14 @@
         <div class="results-section" id="resultsSection">
             <div class="results-header">
                 <div class="results-count" id="resultsCount">0 items found</div>
-                <input type="text" id="searchBox" class="search-box" placeholder="Filter results...">
-                <span class="tooltip">
-                    <span class="help-icon">?</span>
-                    <span class="tooltiptext">Type to filter the displayed results by item name or category. This only filters what's currently shown - it doesn't fetch new data.</span>
-                </span>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <input type="text" id="searchBox" class="search-box" placeholder="Filter results...">
+                    <button class="refresh-button" onclick="exportToCSV()" style="background-color: #4ade80; padding: 8px 16px;">📥 Export CSV</button>
+                    <span class="tooltip">
+                        <span class="help-icon">?</span>
+                        <span class="tooltiptext">Type to filter the displayed results by item name or category. This only filters what's currently shown - it doesn't fetch new data.</span>
+                    </span>
+                </div>
             </div>
             <div class="table-container">
                 <table id="resultsTable">
@@ -897,6 +901,7 @@
 
     <script src="shared-utils.js"></script>
     <script src="savedSearches.js"></script>
+    <script src="favorites.js"></script>
     <script>
         // ==========================================
         // API CONFIGURATION
@@ -1564,6 +1569,161 @@
         loadItems();
 
         // ==========================================
+        // URL STATE MANAGEMENT
+        // ==========================================
+
+        // Restore state from URL on page load
+        function restoreFromUrl() {
+            const params = BitcraftUtils.getUrlParams();
+
+            const categorySelect = document.getElementById('categoryFilter');
+            const tierSelect = document.getElementById('tierFilter');
+            const raritySelect = document.getElementById('rarityFilter');
+
+            // Restore categories
+            if (params.categories) {
+                const categories = Array.isArray(params.categories) ? params.categories : [params.categories];
+                Array.from(categorySelect.options).forEach(opt => {
+                    opt.selected = categories.includes(opt.value);
+                });
+            }
+
+            // Restore tiers
+            if (params.tiers) {
+                const tiers = Array.isArray(params.tiers) ? params.tiers : [params.tiers];
+                Array.from(tierSelect.options).forEach(opt => {
+                    opt.selected = tiers.includes(opt.value);
+                });
+            }
+
+            // Restore rarities
+            if (params.rarities) {
+                const rarities = Array.isArray(params.rarities) ? params.rarities : [params.rarities];
+                Array.from(raritySelect.options).forEach(opt => {
+                    opt.selected = rarities.includes(opt.value);
+                });
+            }
+
+            // Restore region filter
+            if (params.allRegions === 'true') {
+                document.getElementById('allRegions').checked = true;
+            }
+
+            // Auto-trigger search if filters are present
+            if (params.categories || params.tiers || params.rarities) {
+                setTimeout(() => handleFilterChange(), 500);
+            }
+        }
+
+        // Update URL when filters change
+        function updateUrl() {
+            const categorySelect = document.getElementById('categoryFilter');
+            const tierSelect = document.getElementById('tierFilter');
+            const raritySelect = document.getElementById('rarityFilter');
+
+            const params = {};
+
+            const selectedCategories = Array.from(categorySelect.selectedOptions).map(opt => opt.value);
+            if (selectedCategories.length > 0) {
+                params.categories = selectedCategories;
+            }
+
+            const selectedTiers = Array.from(tierSelect.selectedOptions).map(opt => opt.value);
+            if (selectedTiers.length > 0) {
+                params.tiers = selectedTiers;
+            }
+
+            const selectedRarities = Array.from(raritySelect.selectedOptions).map(opt => opt.value);
+            if (selectedRarities.length > 0) {
+                params.rarities = selectedRarities;
+            }
+
+            const allRegions = document.getElementById('allRegions').checked;
+            if (allRegions) {
+                params.allRegions = 'true';
+            }
+
+            BitcraftUtils.setUrlParams(params, true);
+        }
+
+        // Call restoreFromUrl after dropdowns are populated
+        setTimeout(restoreFromUrl, 500);
+
+        // Add event listeners to update URL when filters change
+        document.getElementById('categoryFilter').addEventListener('change', updateUrl);
+        document.getElementById('tierFilter').addEventListener('change', updateUrl);
+        document.getElementById('rarityFilter').addEventListener('change', updateUrl);
+        document.getElementById('allRegions').addEventListener('change', updateUrl);
+
+        // ==========================================
+        // ENHANCED PRICE DISPLAY IN TABLES
+        // ==========================================
+
+        // Override displayResults to use better price formatting
+        const originalDisplayResults = displayResults;
+        displayResults = function(data) {
+            const resultsSection = document.getElementById('resultsSection');
+            const resultsBody = document.getElementById('resultsBody');
+            const resultsCount = document.getElementById('resultsCount');
+
+            resultsSection.classList.add('active');
+            resultsCount.textContent = `${data.length} item${data.length !== 1 ? 's' : ''} found`;
+
+            if (data.length === 0) {
+                resultsBody.innerHTML = '<tr><td colspan="8" class="no-results">No results found</td></tr>';
+                return;
+            }
+
+            resultsBody.innerHTML = data.map(row => `
+                <tr>
+                    <td><a href="https://bitjita.com/market/item/${row.itemId}" target="_blank" class="item-link">${row.isCargo ? '<span class="cargo-label">[Cargo]</span>' : ''}${row.itemName}</a></td>
+                    <td>${row.tier}</td>
+                    <td class="${row.common !== null ? 'price-cell' : 'price-na'}">
+                        ${row.common !== null && row.commonItemId
+                            ? `<div class="price-with-claim">
+                                 <a href="https://bitjita.com/market/item/${row.commonItemId}" target="_blank" class="item-link">${BitcraftUtils.formatPrice(row.common)}</a>
+                                 ${row.commonClaim ? `<div class="claim-name">${row.commonClaim}</div>` : ''}
+                               </div>`
+                            : (row.common !== null ? BitcraftUtils.formatPrice(row.common) : 'N/A')}
+                    </td>
+                    <td class="${row.uncommon !== null ? 'price-cell' : 'price-na'}">
+                        ${row.uncommon !== null && row.uncommonItemId
+                            ? `<div class="price-with-claim">
+                                 <a href="https://bitjita.com/market/item/${row.uncommonItemId}" target="_blank" class="item-link">${BitcraftUtils.formatPrice(row.uncommon)}</a>
+                                 ${row.uncommonClaim ? `<div class="claim-name">${row.uncommonClaim}</div>` : ''}
+                               </div>`
+                            : (row.uncommon !== null ? BitcraftUtils.formatPrice(row.uncommon) : 'N/A')}
+                    </td>
+                    <td class="${row.rare !== null ? 'price-cell' : 'price-na'}">
+                        ${row.rare !== null && row.rareItemId
+                            ? `<div class="price-with-claim">
+                                 <a href="https://bitjita.com/market/item/${row.rareItemId}" target="_blank" class="item-link">${BitcraftUtils.formatPrice(row.rare)}</a>
+                                 ${row.rareClaim ? `<div class="claim-name">${row.rareClaim}</div>` : ''}
+                               </div>`
+                            : (row.rare !== null ? BitcraftUtils.formatPrice(row.rare) : 'N/A')}
+                    </td>
+                    <td class="${row.epic !== null ? 'price-cell' : 'price-na'}">
+                        ${row.epic !== null && row.epicItemId
+                            ? `<div class="price-with-claim">
+                                 <a href="https://bitjita.com/market/item/${row.epicItemId}" target="_blank" class="item-link">${BitcraftUtils.formatPrice(row.epic)}</a>
+                                 ${row.epicClaim ? `<div class="claim-name">${row.epicClaim}</div>` : ''}
+                               </div>`
+                            : (row.epic !== null ? BitcraftUtils.formatPrice(row.epic) : 'N/A')}
+                    </td>
+                    <td class="${row.legendary !== null ? 'price-cell' : 'price-na'}">
+                        ${row.legendary !== null && row.legendaryItemId
+                            ? `<div class="price-with-claim">
+                                 <a href="https://bitjita.com/market/item/${row.legendaryItemId}" target="_blank" class="item-link">${BitcraftUtils.formatPrice(row.legendary)}</a>
+                                 ${row.legendaryClaim ? `<div class="claim-name">${row.legendaryClaim}</div>` : ''}
+                               </div>`
+                            : (row.legendary !== null ? BitcraftUtils.formatPrice(row.legendary) : 'N/A')}
+                    </td>
+                    <td>${row.category}</td>
+                </tr>
+            `).join('');
+        };
+
+        // ==========================================
         // SAVED SEARCHES FUNCTIONALITY
         // ==========================================
 
@@ -2023,6 +2183,49 @@
         }
 
         window.addEventListener('DOMContentLoaded', initVersionToggle);
+
+        // ==========================================
+        // EXPORT TO CSV
+        // ==========================================
+
+        function exportToCSV() {
+            if (currentResults.length === 0) {
+                showToast('No data to export', 'warning');
+                return;
+            }
+
+            // CSV headers
+            const headers = ['Item Name', 'Tier', 'Common', 'Uncommon', 'Rare', 'Epic', 'Legendary', 'Category'];
+
+            // CSV rows
+            const rows = currentResults.map(row => [
+                row.itemName,
+                row.tier,
+                row.common !== null ? row.common : 'N/A',
+                row.uncommon !== null ? row.uncommon : 'N/A',
+                row.rare !== null ? row.rare : 'N/A',
+                row.epic !== null ? row.epic : 'N/A',
+                row.legendary !== null ? row.legendary : 'N/A',
+                row.category
+            ]);
+
+            // Create CSV content
+            const csvContent = [
+                headers.join(','),
+                ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+            ].join('\n');
+
+            // Create blob and download
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `bitcraft-gear-prices-${Date.now()}.csv`;
+            link.click();
+            URL.revokeObjectURL(url);
+
+            showToast('CSV exported successfully!', 'success');
+        }
     </script>
 </body>
 </html>
