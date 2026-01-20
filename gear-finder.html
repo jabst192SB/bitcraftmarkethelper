@@ -798,12 +798,59 @@
             <div class="results-header">
                 <div class="results-count" id="resultsCount">0 items found</div>
                 <div style="display: flex; gap: 10px; align-items: center;">
-                    <input type="text" id="searchBox" class="search-box" placeholder="Filter results...">
+                    <input type="text" id="searchBox" class="search-box" placeholder="Quick filter by name...">
+                    <button class="refresh-button" onclick="toggleColumnFilters()" id="columnFilterToggle" style="background-color: #a78bfa; padding: 8px 16px;">🔍 Column Filters</button>
                     <button class="refresh-button" onclick="exportToCSV()" style="background-color: #4ade80; padding: 8px 16px;">📥 Export CSV</button>
                     <span class="tooltip">
                         <span class="help-icon">?</span>
-                        <span class="tooltiptext">Type to filter the displayed results by item name or category. This only filters what's currently shown - it doesn't fetch new data.</span>
+                        <span class="tooltiptext">Use quick filter to search by name, or enable column filters for advanced filtering by price, tier, and category.</span>
                     </span>
+                </div>
+            </div>
+
+            <!-- Column Filters -->
+            <div id="columnFiltersPanel" style="display: none; background-color: #2a2a2a; padding: 15px; border-radius: 6px; margin-bottom: 15px; border: 1px solid #4a4a4a;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <h3 style="color: #4a9eff; margin: 0; font-size: 16px;">Column Filters</h3>
+                    <button class="refresh-button" onclick="clearColumnFilters()" style="background-color: #f87171; padding: 6px 12px; font-size: 13px;">Clear All Filters</button>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px;">
+                    <div>
+                        <label style="color: #b0b0b0; font-size: 12px; margin-bottom: 4px; display: block;">Item Name</label>
+                        <input type="text" id="filterItemName" class="search-box" placeholder="Filter by name..." style="width: 100%; font-size: 13px; padding: 8px;">
+                    </div>
+                    <div>
+                        <label style="color: #b0b0b0; font-size: 12px; margin-bottom: 4px; display: block;">Tier</label>
+                        <select id="filterTier" style="width: 100%; padding: 8px; background-color: #3a3a3a; border: 1px solid #4a4a4a; border-radius: 4px; color: #e0e0e0; font-size: 13px;">
+                            <option value="">All Tiers</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="color: #b0b0b0; font-size: 12px; margin-bottom: 4px; display: block;">Category</label>
+                        <input type="text" id="filterCategory" class="search-box" placeholder="Filter by category..." style="width: 100%; font-size: 13px; padding: 8px;">
+                    </div>
+                    <div>
+                        <label style="color: #b0b0b0; font-size: 12px; margin-bottom: 4px; display: block;">Min Price (any rarity)</label>
+                        <input type="number" id="filterMinPrice" class="search-box" placeholder="Min..." style="width: 100%; font-size: 13px; padding: 8px;">
+                    </div>
+                    <div>
+                        <label style="color: #b0b0b0; font-size: 12px; margin-bottom: 4px; display: block;">Max Price (any rarity)</label>
+                        <input type="number" id="filterMaxPrice" class="search-box" placeholder="Max..." style="width: 100%; font-size: 13px; padding: 8px;">
+                    </div>
+                    <div>
+                        <label style="color: #b0b0b0; font-size: 12px; margin-bottom: 4px; display: block;">Specific Rarity</label>
+                        <select id="filterRarity" style="width: 100%; padding: 8px; background-color: #3a3a3a; border: 1px solid #4a4a4a; border-radius: 4px; color: #e0e0e0; font-size: 13px;">
+                            <option value="">All Rarities</option>
+                            <option value="common">Common</option>
+                            <option value="uncommon">Uncommon</option>
+                            <option value="rare">Rare</option>
+                            <option value="epic">Epic</option>
+                            <option value="legendary">Legendary</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #3a3a3a;">
+                    <span style="color: #6b7280; font-size: 12px;">💡 Tip: Leave fields empty to show all. Price filters check if ANY rarity price matches.</span>
                 </div>
             </div>
             <div class="table-container">
@@ -1028,6 +1075,10 @@
             document.querySelectorAll('th.sortable').forEach(th => {
                 th.addEventListener('click', () => handleSort(th.dataset.column));
             });
+
+            // Setup column filters
+            populateTierFilter();
+            setupColumnFilters();
         }
 
         // Handle refresh button click
@@ -1451,19 +1502,135 @@
 
         // Handle search/filter
         function handleSearch(e) {
-            const searchTerm = e.target.value.toLowerCase().trim();
+            applyAllFilters();
+        }
 
-            if (searchTerm === '') {
-                displayResults(currentResults);
-                return;
+        // Apply all filters (quick search + column filters)
+        function applyAllFilters() {
+            let filtered = [...currentResults];
+            const totalCount = currentResults.length;
+
+            // Quick search filter
+            const quickSearch = document.getElementById('searchBox').value.toLowerCase().trim();
+            if (quickSearch) {
+                filtered = filtered.filter(row =>
+                    row.itemName.toLowerCase().includes(quickSearch) ||
+                    row.category.toLowerCase().includes(quickSearch)
+                );
             }
 
-            const filtered = currentResults.filter(row =>
-                row.itemName.toLowerCase().includes(searchTerm) ||
-                row.category.toLowerCase().includes(searchTerm)
-            );
+            // Column filters
+            const filterItemName = document.getElementById('filterItemName')?.value.toLowerCase().trim();
+            const filterTier = document.getElementById('filterTier')?.value;
+            const filterCategory = document.getElementById('filterCategory')?.value.toLowerCase().trim();
+            const filterMinPrice = parseFloat(document.getElementById('filterMinPrice')?.value);
+            const filterMaxPrice = parseFloat(document.getElementById('filterMaxPrice')?.value);
+            const filterRarity = document.getElementById('filterRarity')?.value;
+
+            // Apply item name filter
+            if (filterItemName) {
+                filtered = filtered.filter(row =>
+                    row.itemName.toLowerCase().includes(filterItemName)
+                );
+            }
+
+            // Apply tier filter
+            if (filterTier) {
+                filtered = filtered.filter(row => row.tier == filterTier);
+            }
+
+            // Apply category filter
+            if (filterCategory) {
+                filtered = filtered.filter(row =>
+                    row.category.toLowerCase().includes(filterCategory)
+                );
+            }
+
+            // Apply price filters (check if ANY rarity price falls within range)
+            if (!isNaN(filterMinPrice) || !isNaN(filterMaxPrice)) {
+                filtered = filtered.filter(row => {
+                    const prices = [row.common, row.uncommon, row.rare, row.epic, row.legendary]
+                        .filter(p => p !== null);
+
+                    if (prices.length === 0) return false;
+
+                    const minCheck = isNaN(filterMinPrice) || prices.some(p => p >= filterMinPrice);
+                    const maxCheck = isNaN(filterMaxPrice) || prices.some(p => p <= filterMaxPrice);
+
+                    return minCheck && maxCheck;
+                });
+            }
+
+            // Apply rarity-specific filter (show only items with that rarity available)
+            if (filterRarity) {
+                filtered = filtered.filter(row => {
+                    return row[filterRarity] !== null;
+                });
+            }
+
+            // Update results count with filter status
+            const resultsCount = document.getElementById('resultsCount');
+            if (filtered.length < totalCount) {
+                resultsCount.textContent = `${filtered.length} of ${totalCount} items (filtered)`;
+                resultsCount.style.color = '#fb923c'; // Orange to indicate filtering
+            } else {
+                resultsCount.textContent = `${filtered.length} item${filtered.length !== 1 ? 's' : ''} found`;
+                resultsCount.style.color = '#4a9eff'; // Blue default
+            }
 
             displayResults(filtered);
+        }
+
+        // Toggle column filters panel
+        function toggleColumnFilters() {
+            const panel = document.getElementById('columnFiltersPanel');
+            const button = document.getElementById('columnFilterToggle');
+
+            if (panel.style.display === 'none') {
+                panel.style.display = 'block';
+                button.textContent = '🔍 Hide Filters';
+                button.style.backgroundColor = '#6b7280';
+            } else {
+                panel.style.display = 'none';
+                button.textContent = '🔍 Column Filters';
+                button.style.backgroundColor = '#a78bfa';
+            }
+        }
+
+        // Clear all column filters
+        function clearColumnFilters() {
+            document.getElementById('filterItemName').value = '';
+            document.getElementById('filterTier').value = '';
+            document.getElementById('filterCategory').value = '';
+            document.getElementById('filterMinPrice').value = '';
+            document.getElementById('filterMaxPrice').value = '';
+            document.getElementById('filterRarity').value = '';
+
+            applyAllFilters();
+            showToast('All filters cleared', 'success');
+        }
+
+        // Populate tier filter dropdown
+        function populateTierFilter() {
+            const filterTier = document.getElementById('filterTier');
+            const tiers = [...new Set(allItems.map(item => item.tier))].sort((a, b) => a - b);
+
+            tiers.forEach(tier => {
+                const option = document.createElement('option');
+                option.value = tier;
+                option.textContent = `Tier ${tier}`;
+                filterTier.appendChild(option);
+            });
+        }
+
+        // Setup column filter event listeners
+        function setupColumnFilters() {
+            document.getElementById('filterItemName').addEventListener('input', BitcraftUtils.debounce(applyAllFilters, 300));
+            document.getElementById('filterTier').addEventListener('change', applyAllFilters);
+            document.getElementById('filterCategory').addEventListener('input', BitcraftUtils.debounce(applyAllFilters, 300));
+            document.getElementById('filterMinPrice').addEventListener('input', BitcraftUtils.debounce(applyAllFilters, 300));
+            document.getElementById('filterMaxPrice').addEventListener('input', BitcraftUtils.debounce(applyAllFilters, 300));
+            document.getElementById('filterRarity').addEventListener('change', applyAllFilters);
         }
 
         // Handle column sorting
