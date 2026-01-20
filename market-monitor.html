@@ -1185,12 +1185,53 @@
             return response.json();
         }
 
-        async function getMarketState() {
-            // Fetch market items (remove default 1000 row limit)
-            const items = await supabaseQuery('market_items', '*', 'order=last_updated.desc', 10000);
+        /**
+         * Fetch all rows from a table using pagination
+         * Supabase has a max limit of 1000 rows per request
+         */
+        async function supabaseQueryAll(table, select = '*', filter = '', orderBy = '') {
+            const BATCH_SIZE = 1000;
+            let allResults = [];
+            let offset = 0;
+            let hasMore = true;
 
-            // Fetch order details (remove default 1000 row limit)
-            const orderDetailsArray = await supabaseQuery('order_details', '*', '', 10000);
+            while (hasMore) {
+                let url = `${SUPABASE_URL}/rest/v1/${table}?select=${select}`;
+                if (filter) url += `&${filter}`;
+                if (orderBy) url += `&order=${orderBy}`;
+                url += `&limit=${BATCH_SIZE}&offset=${offset}`;
+
+                const response = await fetch(url, {
+                    headers: {
+                        'apikey': SUPABASE_ANON_KEY,
+                        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Supabase query failed: ${response.status}`);
+                }
+
+                const batch = await response.json();
+                allResults = allResults.concat(batch);
+
+                // If we got fewer than BATCH_SIZE results, we've reached the end
+                if (batch.length < BATCH_SIZE) {
+                    hasMore = false;
+                } else {
+                    offset += BATCH_SIZE;
+                }
+            }
+
+            return allResults;
+        }
+
+        async function getMarketState() {
+            // Fetch ALL market items using pagination (no 1000 row limit)
+            const items = await supabaseQueryAll('market_items', '*', '', 'last_updated.desc');
+
+            // Fetch ALL order details using pagination (no 1000 row limit)
+            const orderDetailsArray = await supabaseQueryAll('order_details', '*');
 
             // Convert order details array to object keyed by item_id
             const orderDetails = {};
