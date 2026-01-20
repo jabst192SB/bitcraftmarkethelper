@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Bitcraft Market Helper</title>
+    <link rel="stylesheet" href="shared-styles.css" id="sharedStyles" disabled>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a1a;
+            color: #e0e0e0;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #4a9eff;
+            font-size: 32px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #b0b0b0;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+
+        .nav-links {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .nav-links a {
+            color: #4a9eff;
+            text-decoration: none;
+            margin: 0 10px;
+            padding: 8px 16px;
+            border-radius: 4px;
+            background-color: #2a2a2a;
+            display: inline-block;
+            transition: background-color 0.2s;
+        }
+
+        .nav-links a:hover {
+            background-color: #3a3a3a;
+        }
+
+        /* Quick Search Section */
+        .quick-search-section {
+            background-color: #2a2a2a;
+            padding: 25px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            border-left: 4px solid #4a9eff;
+        }
+
+        .quick-search-title {
+            color: #4a9eff;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .quick-search-box {
+            display: flex;
+            gap: 10px;
+        }
+
+        .quick-search-input {
+            flex: 1;
+            padding: 12px;
+            background-color: #3a3a3a;
+            border: 1px solid #4a4a4a;
+            border-radius: 4px;
+            color: #e0e0e0;
+            font-size: 16px;
+        }
+
+        .quick-search-input:focus {
+            outline: none;
+            border-color: #4a9eff;
+        }
+
+        .quick-search-btn {
+            padding: 12px 24px;
+            background-color: #4a9eff;
+            color: #1a1a1a;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .quick-search-btn:hover {
+            background-color: #6bb3ff;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background-color: #2a2a2a;
+            padding: 25px;
+            border-radius: 8px;
+            border-left: 4px solid #4a9eff;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(74, 158, 255, 0.2);
+        }
+
+        .stat-card-title {
+            color: #b0b0b0;
+            font-size: 14px;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-card-value {
+            color: #4a9eff;
+            font-size: 36px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+
+        .stat-card-description {
+            color: #9ca3af;
+            font-size: 13px;
+        }
+
+        /* Widgets Grid */
+        .widgets-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .widget {
+            background-color: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+        }
+
+        .widget-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #3a3a3a;
+        }
+
+        .widget-title {
+            color: #4a9eff;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .widget-action {
+            padding: 6px 12px;
+            background-color: #3a3a3a;
+            color: #4a9eff;
+            text-decoration: none;
+            border-radius: 4px;
+            font-size: 13px;
+            transition: background-color 0.2s;
+        }
+
+        .widget-action:hover {
+            background-color: #4a4a4a;
+        }
+
+        .widget-content {
+            min-height: 200px;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #6b7280;
+            padding: 40px 20px;
+            font-style: italic;
+        }
+
+        .favorite-item, .recent-search-item {
+            background-color: #3a3a3a;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background-color 0.2s;
+        }
+
+        .favorite-item:hover, .recent-search-item:hover {
+            background-color: #4a4a4a;
+        }
+
+        .favorite-item-name, .recent-search-name {
+            color: #e0e0e0;
+            font-weight: 500;
+            flex: 1;
+        }
+
+        .favorite-item-link, .recent-search-link {
+            color: #4a9eff;
+            text-decoration: none;
+            margin-right: 10px;
+        }
+
+        .favorite-item-link:hover, .recent-search-link:hover {
+            text-decoration: underline;
+        }
+
+        .favorite-remove-btn {
+            background-color: transparent;
+            border: none;
+            color: #f87171;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 4px 8px;
+            border-radius: 3px;
+            transition: background-color 0.2s;
+        }
+
+        .favorite-remove-btn:hover {
+            background-color: #4a2a2a;
+        }
+
+        .recent-search-time {
+            color: #6b7280;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+
+        /* Toast Notification */
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background-color: #2a2a2a;
+            color: #e0e0e0;
+            padding: 15px 20px;
+            border-radius: 8px;
+            border: 2px solid #4a9eff;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            z-index: 4000;
+            display: none;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .toast.success { border-color: #4ade80; }
+        .toast.error { border-color: #f87171; }
+        .toast.warning { border-color: #fb923c; }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .attribution-footer {
+            background-color: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 40px;
+            text-align: center;
+            border-top: 2px solid #4a9eff;
+        }
+
+        .attribution-footer p {
+            color: #b0b0b0;
+            font-size: 14px;
+            margin: 0;
+        }
+
+        .attribution-footer a {
+            color: #4a9eff;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .attribution-footer a:hover {
+            color: #6bb3ff;
+            text-decoration: underline;
+        }
+
+        @media (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .widgets-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .quick-search-box {
+                flex-direction: column;
+            }
+
+            h1 {
+                font-size: 24px;
+            }
+
+            .toast {
+                right: 15px;
+                left: 15px;
+                bottom: 15px;
+            }
+        }
+
+        /* Version Toggle */
+        .version-toggle {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            z-index: 1000;
+            background-color: #2a2a2a;
+            padding: 8px 15px;
+            border-radius: 6px;
+            border: 1px solid #4a4a4a;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+
+        .version-toggle label {
+            margin: 0;
+            font-size: 12px;
+            color: #b0b0b0;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .version-toggle input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        /* Keyboard shortcuts hint */
+        .shortcuts-hint {
+            text-align: center;
+            color: #6b7280;
+            font-size: 13px;
+            margin-top: 20px;
+        }
+
+        .shortcuts-hint kbd {
+            background-color: #3a3a3a;
+            border: 1px solid #4a4a4a;
+            border-radius: 3px;
+            padding: 2px 6px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 Bitcraft Market Dashboard</h1>
+        <p class="subtitle">Your central hub for market data and favorites</p>
+
+        <div class="nav-links">
+            <a href="index.html">🔍 Market Search</a>
+            <a href="gear-finder.html">⚔️ Gear Finder</a>
+            <a href="market-monitor.html">📊 Market Monitor</a>
+            <a href="help.html">📚 Help & FAQ</a>
+        </div>
+
+        <!-- Quick Search -->
+        <div class="quick-search-section">
+            <h2 class="quick-search-title">⚡ Quick Search</h2>
+            <div class="quick-search-box">
+                <input type="text" id="quickSearchInput" class="quick-search-input" placeholder="Search for an item..." autofocus>
+                <button id="quickSearchBtn" class="quick-search-btn">Search</button>
+            </div>
+        </div>
+
+        <!-- Stats Grid -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-card-title">Favorite Items</div>
+                <div class="stat-card-value" id="favoritesCount">0</div>
+                <div class="stat-card-description">Items you've favorited for quick access</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-card-title">Saved Searches</div>
+                <div class="stat-card-value" id="savedSearchesCount">0</div>
+                <div class="stat-card-description">Your saved search configurations</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-card-title">Total Items</div>
+                <div class="stat-card-value" id="totalItemsCount">-</div>
+                <div class="stat-card-description">Total items in database</div>
+            </div>
+        </div>
+
+        <!-- Widgets Grid -->
+        <div class="widgets-grid">
+            <!-- Favorites Widget -->
+            <div class="widget">
+                <div class="widget-header">
+                    <h3 class="widget-title">⭐ Your Favorites</h3>
+                    <a href="#" class="widget-action" onclick="clearAllFavorites(); return false;">Clear All</a>
+                </div>
+                <div class="widget-content" id="favoritesWidget">
+                    <div class="empty-state">No favorites yet. Click the star icon on items to add them here!</div>
+                </div>
+            </div>
+
+            <!-- Recent Searches Widget -->
+            <div class="widget">
+                <div class="widget-header">
+                    <h3 class="widget-title">🕒 Recent Searches</h3>
+                    <a href="index.html" class="widget-action">View All</a>
+                </div>
+                <div class="widget-content" id="recentSearchesWidget">
+                    <div class="empty-state">No recent searches yet. Start searching to see your history here!</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="shortcuts-hint">
+            Press <kbd>Ctrl</kbd> + <kbd>K</kbd> to focus search | <kbd>Esc</kbd> to clear
+        </div>
+
+        <div class="attribution-footer">
+            <p>Market data graciously provided by <a href="https://bitjita.com" target="_blank">bitjita.com</a> 💙</p>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="toast"></div>
+
+    <!-- UI Version Toggle -->
+    <div class="version-toggle" id="versionToggle">
+        <label>
+            <input type="checkbox" id="uiVersionToggle">
+            Enhanced UI
+        </label>
+    </div>
+
+    <script src="shared-utils.js"></script>
+    <script src="savedSearches.js"></script>
+    <script src="favorites.js"></script>
+    <script>
+        // ==========================================
+        // INITIALIZATION
+        // ==========================================
+
+        // Initialize dashboard on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            initDashboard();
+            initKeyboardShortcuts();
+            initVersionToggle();
+        });
+
+        // ==========================================
+        // DASHBOARD INITIALIZATION
+        // ==========================================
+
+        function initDashboard() {
+            updateStats();
+            renderFavorites();
+            renderRecentSearches();
+            loadTotalItemsCount();
+
+            // Listen for changes from other tabs
+            Favorites.onStorageChange(() => {
+                updateStats();
+                renderFavorites();
+            });
+
+            SavedSearches.onStorageChange(() => {
+                updateStats();
+                renderRecentSearches();
+            });
+
+            // Setup quick search
+            document.getElementById('quickSearchBtn').addEventListener('click', performQuickSearch);
+            document.getElementById('quickSearchInput').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    performQuickSearch();
+                }
+            });
+        }
+
+        // ==========================================
+        // STATS
+        // ==========================================
+
+        function updateStats() {
+            // Favorites count
+            document.getElementById('favoritesCount').textContent = Favorites.count();
+
+            // Saved searches count
+            const allSearches = SavedSearches.getAll();
+            document.getElementById('savedSearchesCount').textContent = allSearches.length;
+        }
+
+        async function loadTotalItemsCount() {
+            try {
+                // Load from items.json
+                const itemsResponse = await fetch('items.json');
+                const itemsData = await itemsResponse.json();
+                const itemsCount = (itemsData.items || []).length;
+
+                // Load from cargo.json
+                let cargoCount = 0;
+                try {
+                    const cargoResponse = await fetch('cargo.json');
+                    const cargoData = await cargoResponse.json();
+                    cargoCount = (cargoData.cargos || []).length;
+                } catch (e) {
+                    console.warn('cargo.json not found');
+                }
+
+                const total = itemsCount + cargoCount;
+                document.getElementById('totalItemsCount').textContent = BitcraftUtils.formatNumber(total);
+            } catch (error) {
+                console.error('Failed to load item count:', error);
+                document.getElementById('totalItemsCount').textContent = 'Error';
+            }
+        }
+
+        // ==========================================
+        // FAVORITES
+        // ==========================================
+
+        function renderFavorites() {
+            const container = document.getElementById('favoritesWidget');
+            const favorites = Favorites.getAll('timestamp');
+
+            if (favorites.length === 0) {
+                container.innerHTML = '<div class="empty-state">No favorites yet. Click the star icon on items to add them here!</div>';
+                return;
+            }
+
+            container.innerHTML = favorites.slice(0, 5).map(fav => `
+                <div class="favorite-item">
+                    <span class="favorite-item-name">${BitcraftUtils.escapeHtml(fav.itemName)}</span>
+                    <div>
+                        <a href="index.html?itemId=${fav.itemId}" class="favorite-item-link">View</a>
+                        <button class="favorite-remove-btn" onclick="removeFavorite('${fav.itemId}')" title="Remove from favorites">🗑️</button>
+                    </div>
+                </div>
+            `).join('');
+
+            if (favorites.length > 5) {
+                container.innerHTML += `<div style="text-align: center; margin-top: 15px; color: #6b7280; font-size: 13px;">+${favorites.length - 5} more favorites</div>`;
+            }
+        }
+
+        function removeFavorite(itemId) {
+            const result = Favorites.remove(itemId);
+            if (result.success) {
+                BitcraftUtils.showToast('Removed from favorites', 'success');
+                updateStats();
+                renderFavorites();
+            } else {
+                BitcraftUtils.showToast(result.error || 'Failed to remove favorite', 'error');
+            }
+        }
+
+        function clearAllFavorites() {
+            if (!confirm('Remove all favorites? This cannot be undone.')) {
+                return;
+            }
+
+            const result = Favorites.clear();
+            if (result.success) {
+                BitcraftUtils.showToast('All favorites cleared', 'success');
+                updateStats();
+                renderFavorites();
+            } else {
+                BitcraftUtils.showToast(result.error || 'Failed to clear favorites', 'error');
+            }
+        }
+
+        // ==========================================
+        // RECENT SEARCHES
+        // ==========================================
+
+        function renderRecentSearches() {
+            const container = document.getElementById('recentSearchesWidget');
+            const searches = SavedSearches.getAll();
+
+            if (searches.length === 0) {
+                container.innerHTML = '<div class="empty-state">No recent searches yet. Start searching to see your history here!</div>';
+                return;
+            }
+
+            // Sort by timestamp (newest first) and take top 5
+            const recentSearches = searches
+                .sort((a, b) => b.timestamp - a.timestamp)
+                .slice(0, 5);
+
+            container.innerHTML = recentSearches.map(search => {
+                const relativeTime = BitcraftUtils.formatRelativeTime(search.timestamp);
+                const typeBadge = search.type === 'gear-finder' ? '⚔️' : '🔍';
+                const link = search.type === 'gear-finder' ? 'gear-finder.html' : 'index.html';
+
+                return `
+                    <div class="recent-search-item">
+                        <div style="flex: 1;">
+                            <span style="margin-right: 8px;">${typeBadge}</span>
+                            <span class="recent-search-name">${BitcraftUtils.escapeHtml(search.name)}</span>
+                            <span class="recent-search-time">${relativeTime}</span>
+                        </div>
+                        <a href="${link}" class="recent-search-link">Load</a>
+                    </div>
+                `;
+            }).join('');
+
+            if (searches.length > 5) {
+                container.innerHTML += `<div style="text-align: center; margin-top: 15px; color: #6b7280; font-size: 13px;">+${searches.length - 5} more searches</div>`;
+            }
+        }
+
+        // ==========================================
+        // QUICK SEARCH
+        // ==========================================
+
+        function performQuickSearch() {
+            const query = document.getElementById('quickSearchInput').value.trim();
+            if (!query) {
+                BitcraftUtils.showToast('Please enter a search term', 'warning');
+                return;
+            }
+
+            // Redirect to market search with query
+            window.location.href = `index.html?q=${encodeURIComponent(query)}`;
+        }
+
+        // ==========================================
+        // KEYBOARD SHORTCUTS
+        // ==========================================
+
+        function initKeyboardShortcuts() {
+            document.addEventListener('keydown', (e) => {
+                // Ctrl+K or Cmd+K: Focus search
+                if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                    e.preventDefault();
+                    document.getElementById('quickSearchInput').focus();
+                }
+
+                // Escape: Clear search
+                if (e.key === 'Escape') {
+                    document.getElementById('quickSearchInput').value = '';
+                    document.getElementById('quickSearchInput').blur();
+                }
+            });
+        }
+
+        // ==========================================
+        // UI VERSION TOGGLE
+        // ==========================================
+
+        function initVersionToggle() {
+            const toggle = document.getElementById('uiVersionToggle');
+            const sharedStyles = document.getElementById('sharedStyles');
+            const savedVersion = localStorage.getItem('bitcraftMarketHelper_uiVersion');
+
+            if (savedVersion === 'enhanced') {
+                toggle.checked = true;
+                sharedStyles.disabled = false;
+                document.body.classList.add('enhanced-ui');
+            }
+
+            toggle.addEventListener('change', function() {
+                if (this.checked) {
+                    sharedStyles.disabled = false;
+                    document.body.classList.add('enhanced-ui');
+                    localStorage.setItem('bitcraftMarketHelper_uiVersion', 'enhanced');
+                } else {
+                    sharedStyles.disabled = true;
+                    document.body.classList.remove('enhanced-ui');
+                    localStorage.setItem('bitcraftMarketHelper_uiVersion', 'classic');
+                }
+            });
+        }
+    </script>
+</body>
+</html>
