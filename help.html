@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Help & FAQ - Bitcraft Market Helper</title>
+    <!-- Shared styles for enhanced UI mode -->
+    <link rel="stylesheet" href="shared-styles.css" id="sharedStyles" disabled>
     <style>
         * {
             margin: 0;
@@ -537,5 +539,43 @@
             <a href="gear-finder.html">⚔️ Gear Finder</a>
         </div>
     </div>
+
+    <!-- UI Version Toggle -->
+    <div class="version-toggle" id="versionToggle" style="position: fixed; bottom: 20px; left: 20px; z-index: 1000; background-color: #2a2a2a; padding: 8px 15px; border-radius: 6px; border: 1px solid #4a4a4a; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+        <label style="margin: 0; font-size: 12px; color: #b0b0b0; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+            <input type="checkbox" id="uiVersionToggle" style="width: 16px; height: 16px; cursor: pointer;">
+            Enhanced UI
+        </label>
+    </div>
+
+    <script src="shared-utils.js"></script>
+    <script>
+        // UI Version Toggle
+        function initVersionToggle() {
+            const toggle = document.getElementById('uiVersionToggle');
+            const sharedStyles = document.getElementById('sharedStyles');
+            const savedVersion = localStorage.getItem('bitcraftMarketHelper_uiVersion');
+
+            if (savedVersion === 'enhanced') {
+                toggle.checked = true;
+                sharedStyles.disabled = false;
+                document.body.classList.add('enhanced-ui');
+            }
+
+            toggle.addEventListener('change', function() {
+                if (this.checked) {
+                    sharedStyles.disabled = false;
+                    document.body.classList.add('enhanced-ui');
+                    localStorage.setItem('bitcraftMarketHelper_uiVersion', 'enhanced');
+                } else {
+                    sharedStyles.disabled = true;
+                    document.body.classList.remove('enhanced-ui');
+                    localStorage.setItem('bitcraftMarketHelper_uiVersion', 'classic');
+                }
+            });
+        }
+
+        window.addEventListener('DOMContentLoaded', initVersionToggle);
+    </script>
 </body>
 </html>
