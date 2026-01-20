@@ -1186,11 +1186,11 @@
         }
 
         async function getMarketState() {
-            // Fetch market items
-            const items = await supabaseQuery('market_items', '*', 'order=last_updated.desc');
+            // Fetch market items (remove default 1000 row limit)
+            const items = await supabaseQuery('market_items', '*', 'order=last_updated.desc', 10000);
 
-            // Fetch order details
-            const orderDetailsArray = await supabaseQuery('order_details', '*');
+            // Fetch order details (remove default 1000 row limit)
+            const orderDetailsArray = await supabaseQuery('order_details', '*', '', 10000);
 
             // Convert order details array to object keyed by item_id
             const orderDetails = {};

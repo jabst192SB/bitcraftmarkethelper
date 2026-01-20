@@ -1050,10 +1050,10 @@ async function syncToSupabase() {
     console.log('\n  Step 2/3: Uploading order details...');
 
     // Filter order details to only include items that exist in market_items
-    const marketItemIds = new Set(marketItems.map(item => item.item_id));
+    // Convert all IDs to strings for consistent comparison
+    const marketItemIds = new Set(marketItems.map(item => String(item.item_id)));
     const filteredOrderEntries = Object.entries(state.orderDetails).filter(([itemId]) => {
-      const numericId = parseInt(itemId);
-      return marketItemIds.has(numericId);
+      return marketItemIds.has(String(itemId));
     });
 
     if (filteredOrderEntries.length < Object.keys(state.orderDetails).length) {
