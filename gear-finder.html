@@ -1299,8 +1299,8 @@
                     gridData = processResultsToGrid(results, allRegionsChecked, targetRegionId);
                 }
 
-                // Sort by default (category, then itemName, then tier)
-                currentSort = { column: 'category', direction: 'asc' };
+                // Sort by default (tier, then itemName)
+                currentSort = { column: 'tier', direction: 'asc' };
                 sortResults(gridData);
 
                 currentResults = gridData;
@@ -1668,11 +1668,19 @@
                 if (aVal === null) aVal = Infinity;
                 if (bVal === null) bVal = Infinity;
 
+                let comparison = 0;
                 if (typeof aVal === 'string') {
-                    return multiplier * aVal.localeCompare(bVal);
+                    comparison = multiplier * aVal.localeCompare(bVal);
                 } else {
-                    return multiplier * (aVal - bVal);
+                    comparison = multiplier * (aVal - bVal);
                 }
+
+                // Secondary sort by itemName when sorting by tier
+                if (comparison === 0 && column === 'tier') {
+                    comparison = a.itemName.localeCompare(b.itemName);
+                }
+
+                return comparison;
             });
         }
 
