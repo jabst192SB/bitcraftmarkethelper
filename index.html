@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bitcraft Market Helper</title>
+    <!-- Shared styles for enhanced UI mode -->
+    <link rel="stylesheet" href="shared-styles.css" id="sharedStyles" disabled>
     <style>
         * {
             margin: 0;
@@ -418,6 +420,54 @@
             font-size: 13px;
         }
 
+        /* Favorite Button */
+        .favorite-btn {
+            background: none;
+            border: none;
+            color: #b0b0b0;
+            cursor: pointer;
+            font-size: 20px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: all 0.2s;
+            margin-left: 8px;
+        }
+
+        .favorite-btn:hover {
+            background-color: #3a3a3a;
+            transform: scale(1.1);
+        }
+
+        .favorite-btn.favorited {
+            color: #fbbf24;
+        }
+
+        .item-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .item-title {
+            flex: 1;
+        }
+
+        /* Price with spread */
+        .price-spread {
+            color: #9ca3af;
+            font-size: 12px;
+            margin-left: 8px;
+        }
+
+        .price-spread.positive {
+            color: #4ade80;
+        }
+
+        .price-spread.negative {
+            color: #f87171;
+        }
+
         .no-orders {
             text-align: center;
             color: #b0b0b0;
@@ -787,7 +837,8 @@
         </h1>
 
         <div style="text-align: center; margin-bottom: 20px;">
-            <a href="gear-finder.html" style="color: #4a9eff; text-decoration: none; padding: 8px 16px; border-radius: 4px; background-color: #2a2a2a; display: inline-block;">⚔️ Gear Finder</a>
+            <a href="dashboard.html" style="color: #4a9eff; text-decoration: none; padding: 8px 16px; border-radius: 4px; background-color: #2a2a2a; display: inline-block;">📊 Dashboard</a>
+            <a href="gear-finder.html" style="color: #4a9eff; text-decoration: none; padding: 8px 16px; border-radius: 4px; background-color: #2a2a2a; display: inline-block; margin-left: 10px;">⚔️ Gear Finder</a>
             <a href="market-monitor.html" style="color: #4a9eff; text-decoration: none; padding: 8px 16px; border-radius: 4px; background-color: #2a2a2a; display: inline-block; margin-left: 10px;">📊 Market Monitor</a>
             <a href="help.html" class="help-link" style="margin-left: 10px;">📚 Help & FAQ</a>
         </div>
@@ -854,7 +905,64 @@
         <div class="error" id="errorMessage"></div>
 
         <div class="search-results-section" id="searchResultsSection">
-            <h2 style="margin-bottom: 20px; color: #4a9eff;">Search Results</h2>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h2 style="margin: 0; color: #4a9eff;">Search Results</h2>
+                <div style="display: flex; gap: 10px;">
+                    <button class="refresh-button" onclick="toggleSearchColumnFilters()" id="searchColumnFilterToggle" style="background-color: #a78bfa;">🔍 Column Filters</button>
+                    <button class="refresh-button" onclick="exportSearchResultsToCSV()" style="background-color: #4ade80;">📥 Export CSV</button>
+                </div>
+            </div>
+
+            <!-- Column Filters for Search Results -->
+            <div id="searchColumnFiltersPanel" style="display: none; background-color: #2a2a2a; padding: 15px; border-radius: 6px; margin-bottom: 15px; border: 1px solid #4a4a4a;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <h3 style="color: #4a9eff; margin: 0; font-size: 16px;">Column Filters</h3>
+                    <button class="refresh-button" onclick="clearSearchColumnFilters()" style="background-color: #f87171; padding: 6px 12px; font-size: 13px;">Clear All Filters</button>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px;">
+                    <div>
+                        <label style="color: #b0b0b0; font-size: 12px; margin-bottom: 4px; display: block;">Item Name</label>
+                        <input type="text" id="searchFilterItemName" class="search-box" placeholder="Filter by name..." style="width: 100%; font-size: 13px; padding: 8px;">
+                    </div>
+                    <div>
+                        <label style="color: #b0b0b0; font-size: 12px; margin-bottom: 4px; display: block;">Tier</label>
+                        <select id="searchFilterTier" style="width: 100%; padding: 8px; background-color: #3a3a3a; border: 1px solid #4a4a4a; border-radius: 4px; color: #e0e0e0; font-size: 13px;">
+                            <option value="">All Tiers</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="color: #b0b0b0; font-size: 12px; margin-bottom: 4px; display: block;">Rarity</label>
+                        <select id="searchFilterRarity" style="width: 100%; padding: 8px; background-color: #3a3a3a; border: 1px solid #4a4a4a; border-radius: 4px; color: #e0e0e0; font-size: 13px;">
+                            <option value="">All Rarities</option>
+                            <option value="Common">Common</option>
+                            <option value="Uncommon">Uncommon</option>
+                            <option value="Rare">Rare</option>
+                            <option value="Epic">Epic</option>
+                            <option value="Legendary">Legendary</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="color: #b0b0b0; font-size: 12px; margin-bottom: 4px; display: block;">Min Buy Price</label>
+                        <input type="number" id="searchFilterMinBuy" class="search-box" placeholder="Min..." style="width: 100%; font-size: 13px; padding: 8px;">
+                    </div>
+                    <div>
+                        <label style="color: #b0b0b0; font-size: 12px; margin-bottom: 4px; display: block;">Max Buy Price</label>
+                        <input type="number" id="searchFilterMaxBuy" class="search-box" placeholder="Max..." style="width: 100%; font-size: 13px; padding: 8px;">
+                    </div>
+                    <div>
+                        <label style="color: #b0b0b0; font-size: 12px; margin-bottom: 4px; display: block;">Min Sell Price</label>
+                        <input type="number" id="searchFilterMinSell" class="search-box" placeholder="Min..." style="width: 100%; font-size: 13px; padding: 8px;">
+                    </div>
+                    <div>
+                        <label style="color: #b0b0b0; font-size: 12px; margin-bottom: 4px; display: block;">Max Sell Price</label>
+                        <input type="number" id="searchFilterMaxSell" class="search-box" placeholder="Max..." style="width: 100%; font-size: 13px; padding: 8px;">
+                    </div>
+                </div>
+                <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #3a3a3a;">
+                    <span style="color: #6b7280; font-size: 12px;">💡 Tip: Leave fields empty to show all. Price filters work with numeric values only.</span>
+                </div>
+            </div>
+
             <div class="search-results-table-container">
                 <table class="search-results-table" id="searchResultsTable">
                     <thead>
@@ -876,12 +984,16 @@
         </div>
 
         <div class="stats-section" id="statsSection">
-            <h2 style="margin-bottom: 20px; color: #4a9eff;">Market Statistics
-                <span class="tooltip">
-                    <span class="help-icon">?</span>
-                    <span class="tooltiptext">Overview of current market conditions for the selected item, including best prices and order counts.</span>
-                </span>
-            </h2>
+            <div class="item-header">
+                <h2 class="item-title" style="margin-bottom: 0; color: #4a9eff;">Market Statistics
+                    <span class="tooltip">
+                        <span class="help-icon">?</span>
+                        <span class="tooltiptext">Overview of current market conditions for the selected item, including best prices and order counts.</span>
+                    </span>
+                </h2>
+                <button id="favoriteBtn" class="favorite-btn" title="Add to favorites" style="display: none;">☆</button>
+            </div>
+            <div style="height: 20px;"></div>
             <div class="stats-grid">
                 <div class="stat-item">
                     <div class="stat-label">Lowest Sell
@@ -980,7 +1092,17 @@
     <!-- Toast Notification -->
     <div class="toast" id="toast"></div>
 
+    <!-- UI Version Toggle -->
+    <div class="version-toggle" id="versionToggle" style="position: fixed; bottom: 20px; left: 20px; z-index: 1000; background-color: #2a2a2a; padding: 8px 15px; border-radius: 6px; border: 1px solid #4a4a4a; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+        <label style="margin: 0; font-size: 12px; color: #b0b0b0; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+            <input type="checkbox" id="uiVersionToggle" style="width: 16px; height: 16px; cursor: pointer;">
+            Enhanced UI
+        </label>
+    </div>
+
+    <script src="shared-utils.js"></script>
     <script src="savedSearches.js"></script>
+    <script src="favorites.js"></script>
     <script>
         // ==========================================
         // API CONFIGURATION
@@ -1631,17 +1753,21 @@
             tbody.innerHTML = results.map(item => {
                 const rarityClass = item.rarity.toLowerCase();
 
+                // Format prices with thousand separators
+                const highestBuyFormatted = item.highestBuy !== '-' ? BitcraftUtils.formatPrice(item.highestBuy) : '-';
+                const lowestSellFormatted = item.lowestSell !== '-' ? BitcraftUtils.formatPrice(item.lowestSell) : '-';
+
                 // Create clickable price cells with claim names
                 const highestBuyCell = item.highestBuy !== '-'
                     ? `<div class="price-with-claim">
-                         <span class="price-cell" onclick="copyPriceWithFeedback('${item.highestBuy}')" title="Click to copy">${item.highestBuy} <span class="price-copy-icon">📋</span></span>
+                         <span class="price-cell" onclick="copyPriceWithFeedback('${item.highestBuy}')" title="Click to copy">${highestBuyFormatted} <span class="price-copy-icon">📋</span></span>
                          ${item.highestBuyClaim ? `<div class="claim-name">${item.highestBuyClaim}</div>` : ''}
                        </div>`
                     : '-';
 
                 const lowestSellCell = item.lowestSell !== '-'
                     ? `<div class="price-with-claim">
-                         <span class="price-cell" onclick="copyPriceWithFeedback('${item.lowestSell}')" title="Click to copy">${item.lowestSell} <span class="price-copy-icon">📋</span></span>
+                         <span class="price-cell" onclick="copyPriceWithFeedback('${item.lowestSell}')" title="Click to copy">${lowestSellFormatted} <span class="price-copy-icon">📋</span></span>
                          ${item.lowestSellClaim ? `<div class="claim-name">${item.lowestSellClaim}</div>` : ''}
                        </div>`
                     : '-';
@@ -1652,9 +1778,9 @@
                         <td><span class="tier-badge">${item.tier}</span></td>
                         <td><span class="rarity-${rarityClass}">${item.rarity}</span></td>
                         <td>${highestBuyCell}</td>
-                        <td>${item.highestBuyQty}</td>
+                        <td>${BitcraftUtils.formatNumber(item.highestBuyQty)}</td>
                         <td>${lowestSellCell}</td>
-                        <td>${item.lowestSellQty}</td>
+                        <td>${BitcraftUtils.formatNumber(item.lowestSellQty)}</td>
                     </tr>
                 `;
             }).join('');
@@ -1672,6 +1798,374 @@
 
         // Initialize app
         loadItems();
+
+        // ==========================================
+        // URL STATE MANAGEMENT
+        // ==========================================
+
+        // Restore state from URL on page load
+        function restoreFromUrl() {
+            const params = BitcraftUtils.getUrlParams();
+
+            // Restore search term
+            if (params.q) {
+                searchInput.value = params.q;
+                performSearch();
+            }
+
+            // Restore tier filter
+            if (params.tier) {
+                tierFilter.value = params.tier;
+            }
+
+            // Restore region filter
+            if (params.allRegions === 'true') {
+                document.getElementById('allRegions').checked = true;
+            }
+
+            // If itemId is provided, fetch that specific item
+            if (params.itemId) {
+                fetchMarketData(params.itemId);
+            }
+        }
+
+        // Update URL when filters change
+        function updateUrl() {
+            const params = {};
+
+            const searchTerm = searchInput.value.trim();
+            if (searchTerm) {
+                params.q = searchTerm;
+            }
+
+            const tier = tierFilter.value;
+            if (tier && tier !== 'all') {
+                params.tier = tier;
+            }
+
+            const allRegions = document.getElementById('allRegions').checked;
+            if (allRegions) {
+                params.allRegions = 'true';
+            }
+
+            if (currentItemId) {
+                params.itemId = currentItemId;
+            }
+
+            BitcraftUtils.setUrlParams(params, true);
+        }
+
+        // Call restoreFromUrl after loadItems completes
+        setTimeout(restoreFromUrl, 500);
+
+        // Update URL when filters change
+        searchInput.addEventListener('input', BitcraftUtils.debounce(updateUrl, 500));
+        tierFilter.addEventListener('change', updateUrl);
+        document.getElementById('allRegions').addEventListener('change', updateUrl);
+
+        // ==========================================
+        // FAVORITES FUNCTIONALITY
+        // ==========================================
+
+        let currentItemName = null;
+
+        // Setup favorite button
+        function setupFavoriteButton() {
+            const favoriteBtn = document.getElementById('favoriteBtn');
+
+            favoriteBtn.addEventListener('click', function() {
+                if (!currentItemId || !currentItemName) {
+                    BitcraftUtils.showToast('No item selected', 'error');
+                    return;
+                }
+
+                const result = Favorites.toggle(currentItemId, currentItemName, {
+                    tier: tierFilter.value
+                });
+
+                if (result.success) {
+                    updateFavoriteButton();
+                    if (result.isFavorited) {
+                        BitcraftUtils.showToast('Added to favorites!', 'success');
+                    } else {
+                        BitcraftUtils.showToast('Removed from favorites', 'success');
+                    }
+                } else {
+                    BitcraftUtils.showToast(result.error || 'Failed to update favorite', 'error');
+                }
+            });
+        }
+
+        // Update favorite button state
+        function updateFavoriteButton() {
+            const favoriteBtn = document.getElementById('favoriteBtn');
+
+            if (!currentItemId) {
+                favoriteBtn.style.display = 'none';
+                return;
+            }
+
+            favoriteBtn.style.display = 'inline-block';
+
+            const isFavorited = Favorites.isFavorited(currentItemId);
+            favoriteBtn.textContent = isFavorited ? '★' : '☆';
+            favoriteBtn.classList.toggle('favorited', isFavorited);
+            favoriteBtn.title = isFavorited ? 'Remove from favorites' : 'Add to favorites';
+        }
+
+        // Initialize favorite button
+        setupFavoriteButton();
+
+        // ==========================================
+        // ENHANCED PRICE DISPLAY
+        // ==========================================
+
+        // Override displayStats to use better formatting and show spread
+        const originalDisplayStats = displayStats;
+        displayStats = function(stats) {
+            // Format prices with thousand separators
+            const lowestSellFormatted = stats.lowestSell ? BitcraftUtils.formatPrice(stats.lowestSell) : '-';
+            const highestBuyFormatted = stats.highestBuy ? BitcraftUtils.formatPrice(stats.highestBuy) : '-';
+
+            document.getElementById('lowestSell').textContent = lowestSellFormatted;
+            document.getElementById('highestBuy').textContent = highestBuyFormatted;
+            document.getElementById('recentSellOrders').textContent = BitcraftUtils.formatNumber(stats.recentSellOrders) || '-';
+            document.getElementById('recentBuyOrders').textContent = BitcraftUtils.formatNumber(stats.recentBuyOrders) || '-';
+
+            // Calculate and display spread
+            if (stats.lowestSell && stats.highestBuy) {
+                const spread = stats.lowestSell - stats.highestBuy;
+                const spreadPercent = ((spread / stats.highestBuy) * 100).toFixed(1);
+                const spreadClass = spread > 0 ? 'positive' : 'negative';
+
+                const lowestSellEl = document.getElementById('lowestSell');
+                const spreadEl = document.createElement('span');
+                spreadEl.className = `price-spread ${spreadClass}`;
+                spreadEl.textContent = `(${spread > 0 ? '+' : ''}${BitcraftUtils.formatNumber(spread)} hex, ${spreadPercent}%)`;
+
+                // Remove existing spread if any
+                const existingSpread = lowestSellEl.parentElement.querySelector('.price-spread');
+                if (existingSpread) existingSpread.remove();
+
+                lowestSellEl.parentElement.appendChild(spreadEl);
+            }
+        };
+
+        // Override fetchMarketData to capture item name and update favorite button
+        const originalFetchMarketData = fetchMarketData;
+        fetchMarketData = async function(itemId, itemType = 'item') {
+            // Find item name from allItems
+            const item = allItems.find(i => i.id == itemId);
+            if (item) {
+                currentItemName = item.name;
+            }
+
+            // Call original function
+            await originalFetchMarketData(itemId, itemType);
+
+            // Update favorite button and URL
+            updateFavoriteButton();
+            updateUrl();
+        };
+
+        // ==========================================
+        // EXPORT TO CSV
+        // ==========================================
+
+        // Store search results for export
+        let lastSearchResults = [];
+
+        // Wrap displaySearchResults to capture results
+        const originalDisplaySearchResults = displaySearchResults;
+        displaySearchResults = function(results) {
+            lastSearchResults = results;
+            applySearchColumnFilters(results);
+        };
+
+        // Apply search column filters
+        function applySearchColumnFilters(results = lastSearchResults) {
+            if (!results || results.length === 0) {
+                originalDisplaySearchResults([]);
+                return;
+            }
+
+            let filtered = [...results];
+            const totalCount = results.length;
+
+            // Get filter values
+            const filterItemName = document.getElementById('searchFilterItemName')?.value.toLowerCase().trim();
+            const filterTier = document.getElementById('searchFilterTier')?.value;
+            const filterRarity = document.getElementById('searchFilterRarity')?.value;
+            const filterMinBuy = parseFloat(document.getElementById('searchFilterMinBuy')?.value);
+            const filterMaxBuy = parseFloat(document.getElementById('searchFilterMaxBuy')?.value);
+            const filterMinSell = parseFloat(document.getElementById('searchFilterMinSell')?.value);
+            const filterMaxSell = parseFloat(document.getElementById('searchFilterMaxSell')?.value);
+
+            // Apply item name filter
+            if (filterItemName) {
+                filtered = filtered.filter(item =>
+                    item.name.toLowerCase().includes(filterItemName)
+                );
+            }
+
+            // Apply tier filter
+            if (filterTier) {
+                filtered = filtered.filter(item => item.tier == filterTier);
+            }
+
+            // Apply rarity filter
+            if (filterRarity) {
+                filtered = filtered.filter(item => item.rarity === filterRarity);
+            }
+
+            // Apply buy price filters
+            if (!isNaN(filterMinBuy)) {
+                filtered = filtered.filter(item => {
+                    const buyPrice = typeof item.highestBuy === 'number' ? item.highestBuy : parseFloat(item.highestBuy);
+                    return !isNaN(buyPrice) && buyPrice >= filterMinBuy;
+                });
+            }
+            if (!isNaN(filterMaxBuy)) {
+                filtered = filtered.filter(item => {
+                    const buyPrice = typeof item.highestBuy === 'number' ? item.highestBuy : parseFloat(item.highestBuy);
+                    return !isNaN(buyPrice) && buyPrice <= filterMaxBuy;
+                });
+            }
+
+            // Apply sell price filters
+            if (!isNaN(filterMinSell)) {
+                filtered = filtered.filter(item => {
+                    const sellPrice = typeof item.lowestSell === 'number' ? item.lowestSell : parseFloat(item.lowestSell);
+                    return !isNaN(sellPrice) && sellPrice >= filterMinSell;
+                });
+            }
+            if (!isNaN(filterMaxSell)) {
+                filtered = filtered.filter(item => {
+                    const sellPrice = typeof item.lowestSell === 'number' ? item.lowestSell : parseFloat(item.lowestSell);
+                    return !isNaN(sellPrice) && sellPrice <= filterMaxSell;
+                });
+            }
+
+            // Update displayed results
+            originalDisplaySearchResults(filtered);
+
+            // Update search results count if there's filtering
+            const hasFilters = filterItemName || filterTier || filterRarity ||
+                             !isNaN(filterMinBuy) || !isNaN(filterMaxBuy) ||
+                             !isNaN(filterMinSell) || !isNaN(filterMaxSell);
+
+            if (hasFilters && filtered.length < totalCount) {
+                // Show filtered count
+                const tbody = document.getElementById('searchResultsBody');
+                if (tbody && tbody.rows.length > 0) {
+                    // Add a message row if filtering is active
+                    const filterRow = tbody.insertRow(0);
+                    filterRow.innerHTML = `<td colspan="7" style="background-color: #3a3a3a; color: #fb923c; text-align: center; padding: 8px; font-size: 13px;">Showing ${filtered.length} of ${totalCount} items (filtered)</td>`;
+                }
+            }
+        }
+
+        // Toggle search column filters panel
+        function toggleSearchColumnFilters() {
+            const panel = document.getElementById('searchColumnFiltersPanel');
+            const button = document.getElementById('searchColumnFilterToggle');
+
+            if (panel.style.display === 'none') {
+                panel.style.display = 'block';
+                button.textContent = '🔍 Hide Filters';
+                button.style.backgroundColor = '#6b7280';
+
+                // Populate tier dropdown if empty
+                populateSearchTierFilter();
+            } else {
+                panel.style.display = 'none';
+                button.textContent = '🔍 Column Filters';
+                button.style.backgroundColor = '#a78bfa';
+            }
+        }
+
+        // Clear all search column filters
+        function clearSearchColumnFilters() {
+            document.getElementById('searchFilterItemName').value = '';
+            document.getElementById('searchFilterTier').value = '';
+            document.getElementById('searchFilterRarity').value = '';
+            document.getElementById('searchFilterMinBuy').value = '';
+            document.getElementById('searchFilterMaxBuy').value = '';
+            document.getElementById('searchFilterMinSell').value = '';
+            document.getElementById('searchFilterMaxSell').value = '';
+
+            applySearchColumnFilters();
+            BitcraftUtils.showToast('All filters cleared', 'success');
+        }
+
+        // Populate tier filter dropdown
+        function populateSearchTierFilter() {
+            const filterTier = document.getElementById('searchFilterTier');
+
+            // Only populate if empty
+            if (filterTier.options.length > 1) return;
+
+            const tiers = [...new Set(allItems.map(item => item.tier))].sort((a, b) => a - b);
+
+            tiers.forEach(tier => {
+                const option = document.createElement('option');
+                option.value = tier;
+                option.textContent = `Tier ${tier}`;
+                filterTier.appendChild(option);
+            });
+        }
+
+        // Setup search column filter event listeners
+        function setupSearchColumnFilters() {
+            document.getElementById('searchFilterItemName')?.addEventListener('input', BitcraftUtils.debounce(() => applySearchColumnFilters(), 300));
+            document.getElementById('searchFilterTier')?.addEventListener('change', () => applySearchColumnFilters());
+            document.getElementById('searchFilterRarity')?.addEventListener('change', () => applySearchColumnFilters());
+            document.getElementById('searchFilterMinBuy')?.addEventListener('input', BitcraftUtils.debounce(() => applySearchColumnFilters(), 300));
+            document.getElementById('searchFilterMaxBuy')?.addEventListener('input', BitcraftUtils.debounce(() => applySearchColumnFilters(), 300));
+            document.getElementById('searchFilterMinSell')?.addEventListener('input', BitcraftUtils.debounce(() => applySearchColumnFilters(), 300));
+            document.getElementById('searchFilterMaxSell')?.addEventListener('input', BitcraftUtils.debounce(() => applySearchColumnFilters(), 300));
+        }
+
+        // Initialize search column filters on page load
+        setupSearchColumnFilters();
+
+        function exportSearchResultsToCSV() {
+            if (lastSearchResults.length === 0) {
+                BitcraftUtils.showToast('No data to export', 'warning');
+                return;
+            }
+
+            // CSV headers
+            const headers = ['Item Name', 'Tier', 'Rarity', 'Highest Buy', 'Buy Qty', 'Lowest Sell', 'Sell Qty'];
+
+            // CSV rows
+            const rows = lastSearchResults.map(item => [
+                item.name,
+                item.tier,
+                item.rarity,
+                item.highestBuy !== '-' ? item.highestBuy : 'N/A',
+                item.highestBuyQty !== '-' ? item.highestBuyQty : 'N/A',
+                item.lowestSell !== '-' ? item.lowestSell : 'N/A',
+                item.lowestSellQty !== '-' ? item.lowestSellQty : 'N/A'
+            ]);
+
+            // Create CSV content
+            const csvContent = [
+                headers.join(','),
+                ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+            ].join('\n');
+
+            // Create blob and download
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `bitcraft-market-search-${Date.now()}.csv`;
+            link.click();
+            URL.revokeObjectURL(url);
+
+            BitcraftUtils.showToast('CSV exported successfully!', 'success');
+        }
 
         // ==========================================
         // SAVED SEARCHES FUNCTIONALITY
@@ -2030,6 +2524,37 @@
 
         // Initialize saved searches on page load
         window.addEventListener('DOMContentLoaded', initSavedSearches);
+
+        // ==========================================
+        // UI VERSION TOGGLE
+        // ==========================================
+        function initVersionToggle() {
+            const toggle = document.getElementById('uiVersionToggle');
+            const sharedStyles = document.getElementById('sharedStyles');
+            const savedVersion = localStorage.getItem('bitcraftMarketHelper_uiVersion');
+
+            // Restore saved preference
+            if (savedVersion === 'enhanced') {
+                toggle.checked = true;
+                sharedStyles.disabled = false;
+                document.body.classList.add('enhanced-ui');
+            }
+
+            // Handle toggle change
+            toggle.addEventListener('change', function() {
+                if (this.checked) {
+                    sharedStyles.disabled = false;
+                    document.body.classList.add('enhanced-ui');
+                    localStorage.setItem('bitcraftMarketHelper_uiVersion', 'enhanced');
+                } else {
+                    sharedStyles.disabled = true;
+                    document.body.classList.remove('enhanced-ui');
+                    localStorage.setItem('bitcraftMarketHelper_uiVersion', 'classic');
+                }
+            });
+        }
+
+        window.addEventListener('DOMContentLoaded', initVersionToggle);
     </script>
 </body>
 </html>

@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gear Finder - Bitcraft Market Helper</title>
+    <!-- Shared styles for enhanced UI mode -->
+    <link rel="stylesheet" href="shared-styles.css" id="sharedStyles" disabled>
     <style>
         * {
             margin: 0;
@@ -704,6 +706,7 @@
         </h1>
 
         <div class="nav-links">
+            <a href="dashboard.html">📊 Dashboard</a>
             <a href="index.html">← Back to Market Search</a>
             <a href="market-monitor.html">📊 Market Monitor</a>
             <a href="help.html" class="help-link">📚 Help & FAQ</a>
@@ -794,11 +797,61 @@
         <div class="results-section" id="resultsSection">
             <div class="results-header">
                 <div class="results-count" id="resultsCount">0 items found</div>
-                <input type="text" id="searchBox" class="search-box" placeholder="Filter results...">
-                <span class="tooltip">
-                    <span class="help-icon">?</span>
-                    <span class="tooltiptext">Type to filter the displayed results by item name or category. This only filters what's currently shown - it doesn't fetch new data.</span>
-                </span>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <input type="text" id="searchBox" class="search-box" placeholder="Quick filter by name...">
+                    <button class="refresh-button" onclick="toggleColumnFilters()" id="columnFilterToggle" style="background-color: #a78bfa; padding: 8px 16px;">🔍 Column Filters</button>
+                    <button class="refresh-button" onclick="exportToCSV()" style="background-color: #4ade80; padding: 8px 16px;">📥 Export CSV</button>
+                    <span class="tooltip">
+                        <span class="help-icon">?</span>
+                        <span class="tooltiptext">Use quick filter to search by name, or enable column filters for advanced filtering by price, tier, and category.</span>
+                    </span>
+                </div>
+            </div>
+
+            <!-- Column Filters -->
+            <div id="columnFiltersPanel" style="display: none; background-color: #2a2a2a; padding: 15px; border-radius: 6px; margin-bottom: 15px; border: 1px solid #4a4a4a;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <h3 style="color: #4a9eff; margin: 0; font-size: 16px;">Column Filters</h3>
+                    <button class="refresh-button" onclick="clearColumnFilters()" style="background-color: #f87171; padding: 6px 12px; font-size: 13px;">Clear All Filters</button>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px;">
+                    <div>
+                        <label style="color: #b0b0b0; font-size: 12px; margin-bottom: 4px; display: block;">Item Name</label>
+                        <input type="text" id="filterItemName" class="search-box" placeholder="Filter by name..." style="width: 100%; font-size: 13px; padding: 8px;">
+                    </div>
+                    <div>
+                        <label style="color: #b0b0b0; font-size: 12px; margin-bottom: 4px; display: block;">Tier</label>
+                        <select id="filterTier" style="width: 100%; padding: 8px; background-color: #3a3a3a; border: 1px solid #4a4a4a; border-radius: 4px; color: #e0e0e0; font-size: 13px;">
+                            <option value="">All Tiers</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="color: #b0b0b0; font-size: 12px; margin-bottom: 4px; display: block;">Category</label>
+                        <input type="text" id="filterCategory" class="search-box" placeholder="Filter by category..." style="width: 100%; font-size: 13px; padding: 8px;">
+                    </div>
+                    <div>
+                        <label style="color: #b0b0b0; font-size: 12px; margin-bottom: 4px; display: block;">Min Price (any rarity)</label>
+                        <input type="number" id="filterMinPrice" class="search-box" placeholder="Min..." style="width: 100%; font-size: 13px; padding: 8px;">
+                    </div>
+                    <div>
+                        <label style="color: #b0b0b0; font-size: 12px; margin-bottom: 4px; display: block;">Max Price (any rarity)</label>
+                        <input type="number" id="filterMaxPrice" class="search-box" placeholder="Max..." style="width: 100%; font-size: 13px; padding: 8px;">
+                    </div>
+                    <div>
+                        <label style="color: #b0b0b0; font-size: 12px; margin-bottom: 4px; display: block;">Specific Rarity</label>
+                        <select id="filterRarity" style="width: 100%; padding: 8px; background-color: #3a3a3a; border: 1px solid #4a4a4a; border-radius: 4px; color: #e0e0e0; font-size: 13px;">
+                            <option value="">All Rarities</option>
+                            <option value="common">Common</option>
+                            <option value="uncommon">Uncommon</option>
+                            <option value="rare">Rare</option>
+                            <option value="epic">Epic</option>
+                            <option value="legendary">Legendary</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #3a3a3a;">
+                    <span style="color: #6b7280; font-size: 12px;">💡 Tip: Leave fields empty to show all. Price filters check if ANY rarity price matches.</span>
+                </div>
             </div>
             <div class="table-container">
                 <table id="resultsTable">
@@ -885,7 +938,17 @@
     <!-- Toast Notification -->
     <div class="toast" id="toast"></div>
 
+    <!-- UI Version Toggle -->
+    <div class="version-toggle" id="versionToggle" style="position: fixed; bottom: 20px; left: 20px; z-index: 1000; background-color: #2a2a2a; padding: 8px 15px; border-radius: 6px; border: 1px solid #4a4a4a; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+        <label style="margin: 0; font-size: 12px; color: #b0b0b0; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+            <input type="checkbox" id="uiVersionToggle" style="width: 16px; height: 16px; cursor: pointer;">
+            Enhanced UI
+        </label>
+    </div>
+
+    <script src="shared-utils.js"></script>
     <script src="savedSearches.js"></script>
+    <script src="favorites.js"></script>
     <script>
         // ==========================================
         // API CONFIGURATION
@@ -1012,6 +1075,10 @@
             document.querySelectorAll('th.sortable').forEach(th => {
                 th.addEventListener('click', () => handleSort(th.dataset.column));
             });
+
+            // Setup column filters
+            populateTierFilter();
+            setupColumnFilters();
         }
 
         // Handle refresh button click
@@ -1435,19 +1502,135 @@
 
         // Handle search/filter
         function handleSearch(e) {
-            const searchTerm = e.target.value.toLowerCase().trim();
+            applyAllFilters();
+        }
 
-            if (searchTerm === '') {
-                displayResults(currentResults);
-                return;
+        // Apply all filters (quick search + column filters)
+        function applyAllFilters() {
+            let filtered = [...currentResults];
+            const totalCount = currentResults.length;
+
+            // Quick search filter
+            const quickSearch = document.getElementById('searchBox').value.toLowerCase().trim();
+            if (quickSearch) {
+                filtered = filtered.filter(row =>
+                    row.itemName.toLowerCase().includes(quickSearch) ||
+                    row.category.toLowerCase().includes(quickSearch)
+                );
             }
 
-            const filtered = currentResults.filter(row =>
-                row.itemName.toLowerCase().includes(searchTerm) ||
-                row.category.toLowerCase().includes(searchTerm)
-            );
+            // Column filters
+            const filterItemName = document.getElementById('filterItemName')?.value.toLowerCase().trim();
+            const filterTier = document.getElementById('filterTier')?.value;
+            const filterCategory = document.getElementById('filterCategory')?.value.toLowerCase().trim();
+            const filterMinPrice = parseFloat(document.getElementById('filterMinPrice')?.value);
+            const filterMaxPrice = parseFloat(document.getElementById('filterMaxPrice')?.value);
+            const filterRarity = document.getElementById('filterRarity')?.value;
+
+            // Apply item name filter
+            if (filterItemName) {
+                filtered = filtered.filter(row =>
+                    row.itemName.toLowerCase().includes(filterItemName)
+                );
+            }
+
+            // Apply tier filter
+            if (filterTier) {
+                filtered = filtered.filter(row => row.tier == filterTier);
+            }
+
+            // Apply category filter
+            if (filterCategory) {
+                filtered = filtered.filter(row =>
+                    row.category.toLowerCase().includes(filterCategory)
+                );
+            }
+
+            // Apply price filters (check if ANY rarity price falls within range)
+            if (!isNaN(filterMinPrice) || !isNaN(filterMaxPrice)) {
+                filtered = filtered.filter(row => {
+                    const prices = [row.common, row.uncommon, row.rare, row.epic, row.legendary]
+                        .filter(p => p !== null);
+
+                    if (prices.length === 0) return false;
+
+                    const minCheck = isNaN(filterMinPrice) || prices.some(p => p >= filterMinPrice);
+                    const maxCheck = isNaN(filterMaxPrice) || prices.some(p => p <= filterMaxPrice);
+
+                    return minCheck && maxCheck;
+                });
+            }
+
+            // Apply rarity-specific filter (show only items with that rarity available)
+            if (filterRarity) {
+                filtered = filtered.filter(row => {
+                    return row[filterRarity] !== null;
+                });
+            }
+
+            // Update results count with filter status
+            const resultsCount = document.getElementById('resultsCount');
+            if (filtered.length < totalCount) {
+                resultsCount.textContent = `${filtered.length} of ${totalCount} items (filtered)`;
+                resultsCount.style.color = '#fb923c'; // Orange to indicate filtering
+            } else {
+                resultsCount.textContent = `${filtered.length} item${filtered.length !== 1 ? 's' : ''} found`;
+                resultsCount.style.color = '#4a9eff'; // Blue default
+            }
 
             displayResults(filtered);
+        }
+
+        // Toggle column filters panel
+        function toggleColumnFilters() {
+            const panel = document.getElementById('columnFiltersPanel');
+            const button = document.getElementById('columnFilterToggle');
+
+            if (panel.style.display === 'none') {
+                panel.style.display = 'block';
+                button.textContent = '🔍 Hide Filters';
+                button.style.backgroundColor = '#6b7280';
+            } else {
+                panel.style.display = 'none';
+                button.textContent = '🔍 Column Filters';
+                button.style.backgroundColor = '#a78bfa';
+            }
+        }
+
+        // Clear all column filters
+        function clearColumnFilters() {
+            document.getElementById('filterItemName').value = '';
+            document.getElementById('filterTier').value = '';
+            document.getElementById('filterCategory').value = '';
+            document.getElementById('filterMinPrice').value = '';
+            document.getElementById('filterMaxPrice').value = '';
+            document.getElementById('filterRarity').value = '';
+
+            applyAllFilters();
+            showToast('All filters cleared', 'success');
+        }
+
+        // Populate tier filter dropdown
+        function populateTierFilter() {
+            const filterTier = document.getElementById('filterTier');
+            const tiers = [...new Set(allItems.map(item => item.tier))].sort((a, b) => a - b);
+
+            tiers.forEach(tier => {
+                const option = document.createElement('option');
+                option.value = tier;
+                option.textContent = `Tier ${tier}`;
+                filterTier.appendChild(option);
+            });
+        }
+
+        // Setup column filter event listeners
+        function setupColumnFilters() {
+            document.getElementById('filterItemName').addEventListener('input', BitcraftUtils.debounce(applyAllFilters, 300));
+            document.getElementById('filterTier').addEventListener('change', applyAllFilters);
+            document.getElementById('filterCategory').addEventListener('input', BitcraftUtils.debounce(applyAllFilters, 300));
+            document.getElementById('filterMinPrice').addEventListener('input', BitcraftUtils.debounce(applyAllFilters, 300));
+            document.getElementById('filterMaxPrice').addEventListener('input', BitcraftUtils.debounce(applyAllFilters, 300));
+            document.getElementById('filterRarity').addEventListener('change', applyAllFilters);
         }
 
         // Handle column sorting
@@ -1551,6 +1734,161 @@
 
         // Initialize app
         loadItems();
+
+        // ==========================================
+        // URL STATE MANAGEMENT
+        // ==========================================
+
+        // Restore state from URL on page load
+        function restoreFromUrl() {
+            const params = BitcraftUtils.getUrlParams();
+
+            const categorySelect = document.getElementById('categoryFilter');
+            const tierSelect = document.getElementById('tierFilter');
+            const raritySelect = document.getElementById('rarityFilter');
+
+            // Restore categories
+            if (params.categories) {
+                const categories = Array.isArray(params.categories) ? params.categories : [params.categories];
+                Array.from(categorySelect.options).forEach(opt => {
+                    opt.selected = categories.includes(opt.value);
+                });
+            }
+
+            // Restore tiers
+            if (params.tiers) {
+                const tiers = Array.isArray(params.tiers) ? params.tiers : [params.tiers];
+                Array.from(tierSelect.options).forEach(opt => {
+                    opt.selected = tiers.includes(opt.value);
+                });
+            }
+
+            // Restore rarities
+            if (params.rarities) {
+                const rarities = Array.isArray(params.rarities) ? params.rarities : [params.rarities];
+                Array.from(raritySelect.options).forEach(opt => {
+                    opt.selected = rarities.includes(opt.value);
+                });
+            }
+
+            // Restore region filter
+            if (params.allRegions === 'true') {
+                document.getElementById('allRegions').checked = true;
+            }
+
+            // Auto-trigger search if filters are present
+            if (params.categories || params.tiers || params.rarities) {
+                setTimeout(() => handleFilterChange(), 500);
+            }
+        }
+
+        // Update URL when filters change
+        function updateUrl() {
+            const categorySelect = document.getElementById('categoryFilter');
+            const tierSelect = document.getElementById('tierFilter');
+            const raritySelect = document.getElementById('rarityFilter');
+
+            const params = {};
+
+            const selectedCategories = Array.from(categorySelect.selectedOptions).map(opt => opt.value);
+            if (selectedCategories.length > 0) {
+                params.categories = selectedCategories;
+            }
+
+            const selectedTiers = Array.from(tierSelect.selectedOptions).map(opt => opt.value);
+            if (selectedTiers.length > 0) {
+                params.tiers = selectedTiers;
+            }
+
+            const selectedRarities = Array.from(raritySelect.selectedOptions).map(opt => opt.value);
+            if (selectedRarities.length > 0) {
+                params.rarities = selectedRarities;
+            }
+
+            const allRegions = document.getElementById('allRegions').checked;
+            if (allRegions) {
+                params.allRegions = 'true';
+            }
+
+            BitcraftUtils.setUrlParams(params, true);
+        }
+
+        // Call restoreFromUrl after dropdowns are populated
+        setTimeout(restoreFromUrl, 500);
+
+        // Add event listeners to update URL when filters change
+        document.getElementById('categoryFilter').addEventListener('change', updateUrl);
+        document.getElementById('tierFilter').addEventListener('change', updateUrl);
+        document.getElementById('rarityFilter').addEventListener('change', updateUrl);
+        document.getElementById('allRegions').addEventListener('change', updateUrl);
+
+        // ==========================================
+        // ENHANCED PRICE DISPLAY IN TABLES
+        // ==========================================
+
+        // Override displayResults to use better price formatting
+        const originalDisplayResults = displayResults;
+        displayResults = function(data) {
+            const resultsSection = document.getElementById('resultsSection');
+            const resultsBody = document.getElementById('resultsBody');
+            const resultsCount = document.getElementById('resultsCount');
+
+            resultsSection.classList.add('active');
+            resultsCount.textContent = `${data.length} item${data.length !== 1 ? 's' : ''} found`;
+
+            if (data.length === 0) {
+                resultsBody.innerHTML = '<tr><td colspan="8" class="no-results">No results found</td></tr>';
+                return;
+            }
+
+            resultsBody.innerHTML = data.map(row => `
+                <tr>
+                    <td><a href="https://bitjita.com/market/item/${row.itemId}" target="_blank" class="item-link">${row.isCargo ? '<span class="cargo-label">[Cargo]</span>' : ''}${row.itemName}</a></td>
+                    <td>${row.tier}</td>
+                    <td class="${row.common !== null ? 'price-cell' : 'price-na'}">
+                        ${row.common !== null && row.commonItemId
+                            ? `<div class="price-with-claim">
+                                 <a href="https://bitjita.com/market/item/${row.commonItemId}" target="_blank" class="item-link">${BitcraftUtils.formatPrice(row.common)}</a>
+                                 ${row.commonClaim ? `<div class="claim-name">${row.commonClaim}</div>` : ''}
+                               </div>`
+                            : (row.common !== null ? BitcraftUtils.formatPrice(row.common) : 'N/A')}
+                    </td>
+                    <td class="${row.uncommon !== null ? 'price-cell' : 'price-na'}">
+                        ${row.uncommon !== null && row.uncommonItemId
+                            ? `<div class="price-with-claim">
+                                 <a href="https://bitjita.com/market/item/${row.uncommonItemId}" target="_blank" class="item-link">${BitcraftUtils.formatPrice(row.uncommon)}</a>
+                                 ${row.uncommonClaim ? `<div class="claim-name">${row.uncommonClaim}</div>` : ''}
+                               </div>`
+                            : (row.uncommon !== null ? BitcraftUtils.formatPrice(row.uncommon) : 'N/A')}
+                    </td>
+                    <td class="${row.rare !== null ? 'price-cell' : 'price-na'}">
+                        ${row.rare !== null && row.rareItemId
+                            ? `<div class="price-with-claim">
+                                 <a href="https://bitjita.com/market/item/${row.rareItemId}" target="_blank" class="item-link">${BitcraftUtils.formatPrice(row.rare)}</a>
+                                 ${row.rareClaim ? `<div class="claim-name">${row.rareClaim}</div>` : ''}
+                               </div>`
+                            : (row.rare !== null ? BitcraftUtils.formatPrice(row.rare) : 'N/A')}
+                    </td>
+                    <td class="${row.epic !== null ? 'price-cell' : 'price-na'}">
+                        ${row.epic !== null && row.epicItemId
+                            ? `<div class="price-with-claim">
+                                 <a href="https://bitjita.com/market/item/${row.epicItemId}" target="_blank" class="item-link">${BitcraftUtils.formatPrice(row.epic)}</a>
+                                 ${row.epicClaim ? `<div class="claim-name">${row.epicClaim}</div>` : ''}
+                               </div>`
+                            : (row.epic !== null ? BitcraftUtils.formatPrice(row.epic) : 'N/A')}
+                    </td>
+                    <td class="${row.legendary !== null ? 'price-cell' : 'price-na'}">
+                        ${row.legendary !== null && row.legendaryItemId
+                            ? `<div class="price-with-claim">
+                                 <a href="https://bitjita.com/market/item/${row.legendaryItemId}" target="_blank" class="item-link">${BitcraftUtils.formatPrice(row.legendary)}</a>
+                                 ${row.legendaryClaim ? `<div class="claim-name">${row.legendaryClaim}</div>` : ''}
+                               </div>`
+                            : (row.legendary !== null ? BitcraftUtils.formatPrice(row.legendary) : 'N/A')}
+                    </td>
+                    <td>${row.category}</td>
+                </tr>
+            `).join('');
+        };
 
         // ==========================================
         // SAVED SEARCHES FUNCTIONALITY
@@ -1983,6 +2321,78 @@
 
         // Initialize saved searches on page load
         window.addEventListener('DOMContentLoaded', initSavedSearches);
+
+        // ==========================================
+        // UI VERSION TOGGLE
+        // ==========================================
+        function initVersionToggle() {
+            const toggle = document.getElementById('uiVersionToggle');
+            const sharedStyles = document.getElementById('sharedStyles');
+            const savedVersion = localStorage.getItem('bitcraftMarketHelper_uiVersion');
+
+            if (savedVersion === 'enhanced') {
+                toggle.checked = true;
+                sharedStyles.disabled = false;
+                document.body.classList.add('enhanced-ui');
+            }
+
+            toggle.addEventListener('change', function() {
+                if (this.checked) {
+                    sharedStyles.disabled = false;
+                    document.body.classList.add('enhanced-ui');
+                    localStorage.setItem('bitcraftMarketHelper_uiVersion', 'enhanced');
+                } else {
+                    sharedStyles.disabled = true;
+                    document.body.classList.remove('enhanced-ui');
+                    localStorage.setItem('bitcraftMarketHelper_uiVersion', 'classic');
+                }
+            });
+        }
+
+        window.addEventListener('DOMContentLoaded', initVersionToggle);
+
+        // ==========================================
+        // EXPORT TO CSV
+        // ==========================================
+
+        function exportToCSV() {
+            if (currentResults.length === 0) {
+                showToast('No data to export', 'warning');
+                return;
+            }
+
+            // CSV headers
+            const headers = ['Item Name', 'Tier', 'Common', 'Uncommon', 'Rare', 'Epic', 'Legendary', 'Category'];
+
+            // CSV rows
+            const rows = currentResults.map(row => [
+                row.itemName,
+                row.tier,
+                row.common !== null ? row.common : 'N/A',
+                row.uncommon !== null ? row.uncommon : 'N/A',
+                row.rare !== null ? row.rare : 'N/A',
+                row.epic !== null ? row.epic : 'N/A',
+                row.legendary !== null ? row.legendary : 'N/A',
+                row.category
+            ]);
+
+            // Create CSV content
+            const csvContent = [
+                headers.join(','),
+                ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+            ].join('\n');
+
+            // Create blob and download
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `bitcraft-gear-prices-${Date.now()}.csv`;
+            link.click();
+            URL.revokeObjectURL(url);
+
+            showToast('CSV exported successfully!', 'success');
+        }
     </script>
 </body>
 </html>
