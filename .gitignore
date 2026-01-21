@@ -20,3 +20,4 @@ start-server.bat
 # Environment variables (contains secrets)
 .env
 local-monitor-state.json
+
