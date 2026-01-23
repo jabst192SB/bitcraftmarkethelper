@@ -1067,6 +1067,34 @@
                        oninput="applyMinHexFilter()">
                 <button class="claim-filter-clear" id="minHexClear" onclick="clearMinHexFilter()" style="display: none; position: static; transform: none; margin: 0 0 0 5px;">✕</button>
             </div>
+
+            <div class="order-type-filters" style="position: relative;">
+                <span class="filter-label">Tier:</span>
+                <button class="btn secondary" id="tierFilterBtn" onclick="toggleTierDropdown()" style="padding: 8px 16px; font-size: 13px;">
+                    <span id="tierFilterLabel">All Tiers</span> ▼
+                </button>
+                <div class="claim-dropdown" id="tierDropdown" style="display: none; position: absolute; top: 100%; left: 0; z-index: 200; width: 250px; margin-top: 5px;">
+                    <div style="padding: 10px;">
+                        <label style="display: block; margin-bottom: 8px; cursor: pointer; color: #e0e0e0;">
+                            <input type="checkbox" id="tierAll" checked onchange="toggleAllTiers()" style="margin-right: 6px;">
+                            All Tiers
+                        </label>
+                        <div id="tierCheckboxes" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid #4a4a4a;">
+                        </div>
+                        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #4a4a4a; display: flex; gap: 8px;">
+                            <button class="btn secondary" onclick="clearTierFilter()" style="flex: 1; padding: 6px; font-size: 12px;">Clear</button>
+                            <button class="btn" onclick="applyTierFilter()" style="flex: 1; padding: 6px; font-size: 12px;">Apply</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="order-type-filters" style="position: relative;">
+                <span class="filter-label">Category:</span>
+                <select id="categoryFilter" onchange="applyCategoryFilter()" style="width: 180px; padding: 8px; background-color: #3a3a3a; border: 1px solid #4a4a4a; border-radius: 4px; color: #e0e0e0; font-size: 13px; cursor: pointer;">
+                    <option value="">All Categories</option>
+                </select>
+            </div>
         </div>
 
         <div id="errorContainer"></div>
@@ -1136,14 +1164,39 @@
         let currentOrderDetails = {}; // Current order details from state endpoint
         let viewMode = 'claim'; // 'claim' or 'item'
         let claimOrdersMap = new Map(); // Map of claimName -> { orders: [], sellCount, buyCount }
+        let selectedTiers = new Set([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]); // All tiers selected by default
+        let selectedCategory = ''; // Empty string means all categories
+        let availableCategories = new Set(); // Categories from current orders
 
         // ==========================================
         // INITIALIZATION
         // ==========================================
         async function init() {
             initClaimFilter();
+            initTierFilter();
             await refreshData();
             startAutoRefresh();
+        }
+
+        function initTierFilter() {
+            const container = document.getElementById('tierCheckboxes');
+            let html = '';
+            for (let i = 1; i <= 10; i++) {
+                html += `
+                    <label style="display: flex; align-items: center; cursor: pointer; color: #e0e0e0;">
+                        <input type="checkbox" class="tier-checkbox" value="${i}" checked onchange="updateTierSelection()" style="margin-right: 6px;">
+                        Tier ${i}
+                    </label>
+                `;
+            }
+            container.innerHTML = html;
+
+            // Close dropdown when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('#tierFilterBtn') && !e.target.closest('#tierDropdown')) {
+                    document.getElementById('tierDropdown').style.display = 'none';
+                }
+            });
         }
 
         // ==========================================
@@ -1347,6 +1400,9 @@
             // Build claim orders map from changes data
             buildClaimOrdersMap();
 
+            // Populate category filter with available categories
+            populateCategoryFilter();
+
             if (viewMode === 'claim') {
                 renderClaimView(container);
             } else {
@@ -1482,6 +1538,12 @@
                         // Apply minimum hex filter
                         if (minHex > 0 && group.price < minHex) return false;
 
+                        // Apply tier filter
+                        if (group.tier && !selectedTiers.has(group.tier)) return false;
+
+                        // Apply category filter
+                        if (selectedCategory && group.category !== selectedCategory) return false;
+
                         // Apply item name/category filter
                         if (itemFilter) {
                             const itemNameMatch = group.itemName.toLowerCase().includes(itemFilter);
@@ -1520,6 +1582,12 @@
 
                     // Apply minimum hex filter
                     if (minHex > 0 && group.price < minHex) return false;
+
+                    // Apply tier filter
+                    if (group.tier && !selectedTiers.has(group.tier)) return false;
+
+                    // Apply category filter
+                    if (selectedCategory && group.category !== selectedCategory) return false;
 
                     // Apply item name/category filter
                     if (itemFilter) {
@@ -2202,6 +2270,122 @@
             const input = document.getElementById('minHexFilter');
             input.value = '';
             applyMinHexFilter();
+        }
+
+        // ==========================================
+        // TIER FILTER
+        // ==========================================
+        function toggleTierDropdown() {
+            const dropdown = document.getElementById('tierDropdown');
+            dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function updateTierSelection() {
+            const checkboxes = document.querySelectorAll('.tier-checkbox');
+            const allCheckbox = document.getElementById('tierAll');
+            const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+
+            allCheckbox.checked = allChecked;
+            updateTierLabel();
+        }
+
+        function toggleAllTiers() {
+            const allCheckbox = document.getElementById('tierAll');
+            const checkboxes = document.querySelectorAll('.tier-checkbox');
+
+            checkboxes.forEach(cb => {
+                cb.checked = allCheckbox.checked;
+            });
+            updateTierLabel();
+        }
+
+        function updateTierLabel() {
+            const checkboxes = document.querySelectorAll('.tier-checkbox:checked');
+            const label = document.getElementById('tierFilterLabel');
+
+            if (checkboxes.length === 10) {
+                label.textContent = 'All Tiers';
+            } else if (checkboxes.length === 0) {
+                label.textContent = 'No Tiers';
+            } else if (checkboxes.length === 1) {
+                label.textContent = `Tier ${checkboxes[0].value}`;
+            } else {
+                label.textContent = `${checkboxes.length} Tiers`;
+            }
+        }
+
+        function applyTierFilter() {
+            selectedTiers.clear();
+            document.querySelectorAll('.tier-checkbox:checked').forEach(cb => {
+                selectedTiers.add(parseInt(cb.value));
+            });
+
+            document.getElementById('tierDropdown').style.display = 'none';
+
+            // Re-render table with filter applied
+            if (currentState) {
+                updateMarketTable({ currentState });
+            }
+        }
+
+        function clearTierFilter() {
+            selectedTiers.clear();
+            for (let i = 1; i <= 10; i++) {
+                selectedTiers.add(i);
+            }
+
+            document.querySelectorAll('.tier-checkbox').forEach(cb => {
+                cb.checked = true;
+            });
+            document.getElementById('tierAll').checked = true;
+            updateTierLabel();
+
+            document.getElementById('tierDropdown').style.display = 'none';
+
+            // Re-render table with filter applied
+            if (currentState) {
+                updateMarketTable({ currentState });
+            }
+        }
+
+        // ==========================================
+        // CATEGORY FILTER
+        // ==========================================
+        function populateCategoryFilter() {
+            const select = document.getElementById('categoryFilter');
+            const currentValue = selectedCategory;
+
+            // Extract categories from current orders
+            availableCategories.clear();
+            claimOrdersMap.forEach(claimData => {
+                claimData.orderGroups.forEach(group => {
+                    if (group.category && group.category !== 'Unknown') {
+                        availableCategories.add(group.category);
+                    }
+                });
+            });
+
+            // Sort alphabetically
+            const sortedCategories = Array.from(availableCategories).sort();
+
+            // Build options
+            let html = '<option value="">All Categories</option>';
+            sortedCategories.forEach(category => {
+                const selected = category === currentValue ? 'selected' : '';
+                html += `<option value="${escapeHtml(category)}" ${selected}>${escapeHtml(category)}</option>`;
+            });
+
+            select.innerHTML = html;
+        }
+
+        function applyCategoryFilter() {
+            const select = document.getElementById('categoryFilter');
+            selectedCategory = select.value;
+
+            // Re-render table with filter applied
+            if (currentState) {
+                updateMarketTable({ currentState });
+            }
         }
 
         // ==========================================
