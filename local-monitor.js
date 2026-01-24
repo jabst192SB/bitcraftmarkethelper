@@ -50,8 +50,29 @@ let state = {
   orderDetails: {},
   changes: [],
   changeCount: 0,
-  lastUpdate: null
+  lastUpdate: null,
+  // Track what's been synced to Supabase to avoid redundant uploads
+  syncState: {
+    lastSyncTime: null,
+    syncedItemHashes: {},      // item_id -> hash of data
+    syncedOrderHashes: {},     // item_id -> hash of order details
+    lastSyncedChangeIndex: 0   // Index of last synced change entry
+  }
 };
+
+/**
+ * Generate a simple hash for an object to detect changes
+ */
+function hashObject(obj) {
+  const str = JSON.stringify(obj);
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return hash.toString(16);
+}
 
 /**
  * Load state from disk
@@ -997,11 +1018,13 @@ async function updateMarketDataBulk(options = {}) {
 }
 
 /**
- * Sync local data to Supabase
- * Uploads market items, order details, and metadata
+ * Sync local data to Supabase (OPTIMIZED - only syncs changed data)
+ * Dramatically reduces egress by tracking what's already been synced
  */
-async function syncToSupabase() {
-  console.log('\n=== Syncing to Supabase ===');
+async function syncToSupabase(options = {}) {
+  const { forceFullSync = false } = options;
+
+  console.log('\n=== Syncing to Supabase (Optimized) ===');
 
   if (!supabaseClient) {
     console.error('✗ Supabase client not initialized. Check your .env file.');
@@ -1015,16 +1038,26 @@ async function syncToSupabase() {
 
   const totalItems = state.currentState.items.length;
   const totalOrderDetails = Object.keys(state.orderDetails).length;
-  console.log(`Uploading ${totalItems} market items and ${totalOrderDetails} order details...`);
+
+  // Initialize sync state if needed
+  if (!state.syncState) {
+    state.syncState = {
+      lastSyncTime: null,
+      syncedItemHashes: {},
+      syncedOrderHashes: {},
+      lastSyncedChangeIndex: 0
+    };
+  }
 
   try {
-    // Step 1: Upsert market items (bulk)
-    console.log('\n  Step 1/3: Uploading market items...');
+    // Step 1: Find changed market items only
+    console.log('\n  Step 1/4: Checking for changed market items...');
 
-    // Deduplicate items by item_id (keep last occurrence)
+    const changedItems = [];
     const itemsMap = new Map();
+
     state.currentState.items.forEach(item => {
-      itemsMap.set(item.id, {
+      const itemData = {
         item_id: item.id,
         item_name: item.name,
         item_type: item.itemType || 0,
@@ -1035,85 +1068,122 @@ async function syncToSupabase() {
         buy_orders: item.buyOrders,
         total_orders: item.totalOrders,
         last_updated: new Date().toISOString()
+      };
+      itemsMap.set(item.id, itemData);
+
+      // Check if item has changed since last sync
+      const currentHash = hashObject({
+        sell_orders: item.sellOrders,
+        buy_orders: item.buyOrders,
+        total_orders: item.totalOrders
       });
+
+      if (forceFullSync || state.syncState.syncedItemHashes[item.id] !== currentHash) {
+        changedItems.push(itemData);
+        state.syncState.syncedItemHashes[item.id] = currentHash;
+      }
     });
 
-    const marketItems = Array.from(itemsMap.values());
-    if (marketItems.length < state.currentState.items.length) {
-      console.log(`  Deduplicated: ${state.currentState.items.length} → ${marketItems.length} unique items`);
+    if (changedItems.length > 0) {
+      await supabaseClient.upsertMarketItems(changedItems);
+      console.log(`  ✓ Uploaded ${changedItems.length} changed items (skipped ${totalItems - changedItems.length} unchanged)`);
+    } else {
+      console.log(`  ✓ No market items changed - skipped upload`);
     }
 
-    await supabaseClient.upsertMarketItems(marketItems);
-    console.log(`  ✓ Uploaded ${marketItems.length} market items`);
+    // Step 2: Find changed order details only
+    console.log('\n  Step 2/4: Checking for changed order details...');
 
-    // Step 2: Upsert order details in batches (100 at a time)
-    console.log('\n  Step 2/3: Uploading order details...');
+    const marketItemIds = new Set(Array.from(itemsMap.keys()).map(String));
+    const changedOrderDetails = [];
 
-    // Filter order details to only include items that exist in market_items
-    // Convert all IDs to strings for consistent comparison
-    const marketItemIds = new Set(marketItems.map(item => String(item.item_id)));
-    const filteredOrderEntries = Object.entries(state.orderDetails).filter(([itemId]) => {
-      return marketItemIds.has(String(itemId));
-    });
+    for (const [itemId, details] of Object.entries(state.orderDetails)) {
+      // Skip if item no longer exists in market
+      if (!marketItemIds.has(String(itemId))) {
+        continue;
+      }
 
-    if (filteredOrderEntries.length < Object.keys(state.orderDetails).length) {
-      const skipped = Object.keys(state.orderDetails).length - filteredOrderEntries.length;
-      console.log(`  Filtered out ${skipped} orphaned order details (items no longer have orders)`);
-    }
+      // Check if order details have changed
+      const currentHash = hashObject(details);
 
-    const BATCH_SIZE = 100;
-    const numBatches = Math.ceil(filteredOrderEntries.length / BATCH_SIZE);
-
-    for (let i = 0; i < numBatches; i++) {
-      const batchStart = i * BATCH_SIZE;
-      const batchEnd = Math.min((i + 1) * BATCH_SIZE, filteredOrderEntries.length);
-      const batchEntries = filteredOrderEntries.slice(batchStart, batchEnd);
-
-      const orderDetailsArray = batchEntries.map(([itemId, details]) => ({
-        item_id: parseInt(itemId),
-        sell_orders: details.sellOrders || [],
-        buy_orders: details.buyOrders || [],
-        stats: details.stats || {},
-        last_updated: new Date().toISOString()
-      }));
-
-      await supabaseClient.upsertOrderDetailsBulk(orderDetailsArray);
-      console.log(`  ✓ Batch ${i + 1}/${numBatches}: ${batchEntries.length} order details`);
-
-      // Small delay between batches
-      if (i < numBatches - 1) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+      if (forceFullSync || state.syncState.syncedOrderHashes[itemId] !== currentHash) {
+        changedOrderDetails.push({
+          item_id: parseInt(itemId),
+          sell_orders: details.sellOrders || [],
+          buy_orders: details.buyOrders || [],
+          stats: details.stats || {},
+          last_updated: new Date().toISOString()
+        });
+        state.syncState.syncedOrderHashes[itemId] = currentHash;
       }
     }
 
-    // Step 3: Upload change history
-    console.log('\n  Step 3/4: Uploading change history...');
-    if (state.changes && state.changes.length > 0) {
-      // Clear existing changes first to avoid duplicates
-      await supabaseClient.request('DELETE', '/rest/v1/market_changes?id=gte.0', null, {
-        'Prefer': 'return=minimal'
-      });
+    if (changedOrderDetails.length > 0) {
+      // Upload in batches
+      const BATCH_SIZE = 100;
+      const numBatches = Math.ceil(changedOrderDetails.length / BATCH_SIZE);
 
-      // Upload each change entry
-      for (const changeEntry of state.changes) {
+      for (let i = 0; i < numBatches; i++) {
+        const batchStart = i * BATCH_SIZE;
+        const batchEnd = Math.min((i + 1) * BATCH_SIZE, changedOrderDetails.length);
+        const batch = changedOrderDetails.slice(batchStart, batchEnd);
+
+        await supabaseClient.upsertOrderDetailsBulk(batch);
+
+        if (numBatches > 1) {
+          console.log(`  ✓ Batch ${i + 1}/${numBatches}: ${batch.length} order details`);
+        }
+
+        if (i < numBatches - 1) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+      console.log(`  ✓ Uploaded ${changedOrderDetails.length} changed order details (skipped ${totalOrderDetails - changedOrderDetails.length} unchanged)`);
+    } else {
+      console.log(`  ✓ No order details changed - skipped upload`);
+    }
+
+    // Step 3: Upload only NEW change entries (incremental)
+    console.log('\n  Step 3/4: Uploading new change entries...');
+
+    const newChanges = state.changes.slice(state.syncState.lastSyncedChangeIndex);
+
+    if (newChanges.length > 0) {
+      for (const changeEntry of newChanges) {
         await supabaseClient.insertChange(changeEntry.changes);
       }
-      console.log(`  ✓ Uploaded ${state.changes.length} change entries`);
+      state.syncState.lastSyncedChangeIndex = state.changes.length;
+      console.log(`  ✓ Uploaded ${newChanges.length} new change entries`);
     } else {
-      console.log(`  ✓ No changes to upload`);
+      console.log(`  ✓ No new changes to upload`);
     }
 
-    // Step 4: Update metadata
+    // Step 4: Update metadata (always update timestamp)
     console.log('\n  Step 4/4: Updating metadata...');
     await supabaseClient.updateMetadata('last_update', state.lastUpdate || Date.now());
     await supabaseClient.updateMetadata('change_count', state.changeCount || 0);
     console.log(`  ✓ Updated metadata`);
 
-    console.log('\n✓ Sync to Supabase successful!');
-    console.log(`  - Market items: ${totalItems}`);
-    console.log(`  - Order details: ${totalOrderDetails}`);
-    console.log(`  - Change entries: ${state.changes?.length || 0}`);
-    console.log(`  - Total changes: ${state.changeCount}`);
+    // Update sync state
+    state.syncState.lastSyncTime = Date.now();
+    saveState();
+
+    // Calculate savings
+    const itemsSaved = totalItems - changedItems.length;
+    const ordersSaved = totalOrderDetails - changedOrderDetails.length;
+    const changesSaved = state.changes.length - newChanges.length;
+
+    console.log('\n✓ Optimized sync complete!');
+    console.log(`  Uploaded: ${changedItems.length} items, ${changedOrderDetails.length} orders, ${newChanges.length} changes`);
+    console.log(`  Skipped:  ${itemsSaved} items, ${ordersSaved} orders, ${changesSaved} changes (already synced)`);
+
+    // Estimate egress savings (rough calculation)
+    const avgItemSize = 150; // bytes per item
+    const avgOrderSize = 500; // bytes per order detail
+    const savedBytes = (itemsSaved * avgItemSize) + (ordersSaved * avgOrderSize);
+    if (savedBytes > 1024) {
+      console.log(`  Estimated egress saved: ~${(savedBytes / 1024).toFixed(1)} KB`);
+    }
 
     return true;
   } catch (error) {
@@ -1121,6 +1191,24 @@ async function syncToSupabase() {
     console.error('  Stack:', error.stack);
     return false;
   }
+}
+
+/**
+ * Force a full sync to Supabase (ignores cached hashes)
+ * Use this after a reset or when data seems out of sync
+ */
+async function syncToSupabaseFull() {
+  console.log('⚠ Forcing full sync (ignoring cache)...');
+
+  // Clear sync state to force full upload
+  state.syncState = {
+    lastSyncTime: null,
+    syncedItemHashes: {},
+    syncedOrderHashes: {},
+    lastSyncedChangeIndex: 0
+  };
+
+  return syncToSupabase({ forceFullSync: true });
 }
 
 // Keep legacy function for backwards compatibility (redirects to Supabase)
@@ -1213,9 +1301,9 @@ async function setupMode() {
     state.lastUpdate = Date.now();
     saveState();
 
-    // Step 4: Sync to Supabase
-    console.log('\nStep 3: Syncing to Supabase...');
-    const syncSuccess = await syncToSupabase();
+    // Step 4: Full sync to Supabase (setup mode always does full sync)
+    console.log('\nStep 3: Syncing to Supabase (full sync)...');
+    const syncSuccess = await syncToSupabaseFull();
 
     const totalTime = Math.round((Date.now() - startTime) / 1000);
 
@@ -1302,13 +1390,19 @@ async function watchMode(intervalSeconds = 60) {
 async function resetState() {
   console.log('\n=== Reset State ===');
 
-  // Reset in-memory state
+  // Reset in-memory state (including sync tracking)
   state = {
     currentState: null,
     orderDetails: {},
     changes: [],
     changeCount: 0,
-    lastUpdate: null
+    lastUpdate: null,
+    syncState: {
+      lastSyncTime: null,
+      syncedItemHashes: {},
+      syncedOrderHashes: {},
+      lastSyncedChangeIndex: 0
+    }
   };
 
   // Delete local state file
@@ -1399,6 +1493,10 @@ async function main() {
         await syncToSupabase();
         break;
 
+      case 'sync-full':
+        await syncToSupabaseFull();
+        break;
+
       case 'state':
         showState();
         break;
@@ -1438,7 +1536,8 @@ Commands:
   🚀 AUTOMATED MODES (Recommended):
     setup                   Initial setup: Fetch ALL items + sync to website (~15-20 min)
     monitor [interval]      Continuous: Check for changes + sync every N seconds (default: 120s)
-    sync                    Manually sync current data to Cloudflare Worker
+    sync                    Optimized sync - only uploads CHANGED data to Supabase
+    sync-full               Force full sync - uploads ALL data (use after reset)
 
   MANUAL MODES:
     update [max] [--full]   Fetch and update market data (default: 100 items per update)
@@ -1463,7 +1562,8 @@ Options:
 
 Manual Examples:
   node local-monitor.js update-bulk 100     # Update 100 items
-  node local-monitor.js sync                # Sync to website
+  node local-monitor.js sync                # Optimized sync (only changed data)
+  node local-monitor.js sync-full           # Force full sync
   node local-monitor.js debug "Get Off My Lawn"
   node local-monitor.js state
 
@@ -1473,11 +1573,20 @@ Update Modes:
   update-bulk    - Manual: Bulk API check + fetch changed items (fast, ~30 requests)
   update         - Manual: One-by-one fetch (slow, ~2964 requests for full update)
 
+⚡ EGRESS OPTIMIZATION:
+  The sync command now tracks what has been uploaded and only syncs CHANGED data:
+  - Market items: Only uploads items where order counts changed
+  - Order details: Only uploads items where orders were added/removed
+  - Change history: Appends new changes (no longer deletes and re-uploads all)
+
+  This dramatically reduces Supabase egress usage (typically 90-99% reduction
+  during normal monitoring when few items change between syncs).
+
 Notes:
   - "setup" mode: Run once to build complete cache and upload to website
   - "monitor" mode: Run continuously to keep website updated every 2 minutes
   - Bulk mode: Checks ALL 2964 items in ~6 seconds using /api/market/prices/bulk
-  - Monitor syncs to: https://bitcraft-market-proxy.jbaird-cb6.workers.dev
+  - Use "sync-full" if data seems out of sync after a reset
 `);
         break;
 
@@ -1501,5 +1610,7 @@ module.exports = {
   fetchMarketData,
   fetchItemOrders,
   updateMarketData,
-  debugClaim
+  debugClaim,
+  syncToSupabase,
+  syncToSupabaseFull
 };
