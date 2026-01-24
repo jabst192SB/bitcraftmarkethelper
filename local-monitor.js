@@ -60,6 +60,9 @@ let state = {
   }
 };
 
+// Egress tracking (not persisted, resets each run)
+let totalRunEgress = 0;
+
 /**
  * Generate a simple hash for an object to detect changes
  */
@@ -72,6 +75,25 @@ function hashObject(obj) {
     hash = hash & hash; // Convert to 32bit integer
   }
   return hash.toString(16);
+}
+
+/**
+ * Calculate byte size of data (for egress tracking)
+ */
+function calculateByteSize(data) {
+  const str = JSON.stringify(data);
+  return Buffer.byteLength(str, 'utf8');
+}
+
+/**
+ * Format bytes to human-readable string
+ */
+function formatBytes(bytes) {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
 }
 
 /**
@@ -1028,16 +1050,19 @@ async function syncToSupabase(options = {}) {
 
   if (!supabaseClient) {
     console.error('✗ Supabase client not initialized. Check your .env file.');
-    return false;
+    return { success: false, egress: 0 };
   }
 
   if (!state.currentState || Object.keys(state.orderDetails).length === 0) {
     console.log('⚠ No data to sync. Run an update first.');
-    return false;
+    return { success: false, egress: 0 };
   }
 
   const totalItems = state.currentState.items.length;
   const totalOrderDetails = Object.keys(state.orderDetails).length;
+
+  // Track egress for this sync cycle
+  let cycleEgress = 0;
 
   // Initialize sync state if needed
   if (!state.syncState) {
@@ -1085,8 +1110,10 @@ async function syncToSupabase(options = {}) {
     });
 
     if (changedItems.length > 0) {
+      const itemsBytes = calculateByteSize(changedItems);
+      cycleEgress += itemsBytes;
       await supabaseClient.upsertMarketItems(changedItems);
-      console.log(`  ✓ Uploaded ${changedItems.length} changed items (skipped ${totalItems - changedItems.length} unchanged)`);
+      console.log(`  ✓ Uploaded ${changedItems.length} changed items (${formatBytes(itemsBytes)}) - skipped ${totalItems - changedItems.length} unchanged`);
     } else {
       console.log(`  ✓ No market items changed - skipped upload`);
     }
@@ -1119,6 +1146,10 @@ async function syncToSupabase(options = {}) {
     }
 
     if (changedOrderDetails.length > 0) {
+      // Calculate egress for all order details
+      const orderDetailsBytes = calculateByteSize(changedOrderDetails);
+      cycleEgress += orderDetailsBytes;
+
       // Upload in batches
       const BATCH_SIZE = 100;
       const numBatches = Math.ceil(changedOrderDetails.length / BATCH_SIZE);
@@ -1138,7 +1169,7 @@ async function syncToSupabase(options = {}) {
           await new Promise(resolve => setTimeout(resolve, 100));
         }
       }
-      console.log(`  ✓ Uploaded ${changedOrderDetails.length} changed order details (skipped ${totalOrderDetails - changedOrderDetails.length} unchanged)`);
+      console.log(`  ✓ Uploaded ${changedOrderDetails.length} changed order details (${formatBytes(orderDetailsBytes)}) - skipped ${totalOrderDetails - changedOrderDetails.length} unchanged`);
     } else {
       console.log(`  ✓ No order details changed - skipped upload`);
     }
@@ -1149,17 +1180,25 @@ async function syncToSupabase(options = {}) {
     const newChanges = state.changes.slice(state.syncState.lastSyncedChangeIndex);
 
     if (newChanges.length > 0) {
+      const changesBytes = calculateByteSize(newChanges);
+      cycleEgress += changesBytes;
+
       for (const changeEntry of newChanges) {
         await supabaseClient.insertChange(changeEntry.changes);
       }
       state.syncState.lastSyncedChangeIndex = state.changes.length;
-      console.log(`  ✓ Uploaded ${newChanges.length} new change entries`);
+      console.log(`  ✓ Uploaded ${newChanges.length} new change entries (${formatBytes(changesBytes)})`);
     } else {
       console.log(`  ✓ No new changes to upload`);
     }
 
     // Step 4: Update metadata (always update timestamp)
     console.log('\n  Step 4/4: Updating metadata...');
+    const metadataBytes = calculateByteSize({
+      last_update: state.lastUpdate || Date.now(),
+      change_count: state.changeCount || 0
+    });
+    cycleEgress += metadataBytes;
     await supabaseClient.updateMetadata('last_update', state.lastUpdate || Date.now());
     await supabaseClient.updateMetadata('change_count', state.changeCount || 0);
     console.log(`  ✓ Updated metadata`);
@@ -1168,7 +1207,7 @@ async function syncToSupabase(options = {}) {
     state.syncState.lastSyncTime = Date.now();
     saveState();
 
-    // Calculate savings
+    // Calculate what was skipped
     const itemsSaved = totalItems - changedItems.length;
     const ordersSaved = totalOrderDetails - changedOrderDetails.length;
     const changesSaved = state.changes.length - newChanges.length;
@@ -1176,20 +1215,13 @@ async function syncToSupabase(options = {}) {
     console.log('\n✓ Optimized sync complete!');
     console.log(`  Uploaded: ${changedItems.length} items, ${changedOrderDetails.length} orders, ${newChanges.length} changes`);
     console.log(`  Skipped:  ${itemsSaved} items, ${ordersSaved} orders, ${changesSaved} changes (already synced)`);
+    console.log(`  Egress used: ${formatBytes(cycleEgress)}`);
 
-    // Estimate egress savings (rough calculation)
-    const avgItemSize = 150; // bytes per item
-    const avgOrderSize = 500; // bytes per order detail
-    const savedBytes = (itemsSaved * avgItemSize) + (ordersSaved * avgOrderSize);
-    if (savedBytes > 1024) {
-      console.log(`  Estimated egress saved: ~${(savedBytes / 1024).toFixed(1)} KB`);
-    }
-
-    return true;
+    return { success: true, egress: cycleEgress };
   } catch (error) {
     console.error('✗ Error syncing to Supabase:', error.message);
     console.error('  Stack:', error.stack);
-    return false;
+    return { success: false, egress: cycleEgress };
   }
 }
 
@@ -1303,7 +1335,7 @@ async function setupMode() {
 
     // Step 4: Full sync to Supabase (setup mode always does full sync)
     console.log('\nStep 3: Syncing to Supabase (full sync)...');
-    const syncSuccess = await syncToSupabaseFull();
+    const syncResult = await syncToSupabaseFull();
 
     const totalTime = Math.round((Date.now() - startTime) / 1000);
 
@@ -1312,7 +1344,11 @@ async function setupMode() {
     console.log(`Total time: ${Math.floor(totalTime / 60)}m ${totalTime % 60}s`);
     console.log(`Total items with details: ${Object.keys(state.orderDetails).length}`);
 
-    if (syncSuccess) {
+    if (syncResult && syncResult.egress) {
+      console.log(`Total egress used: ${formatBytes(syncResult.egress)}`);
+    }
+
+    if (syncResult && syncResult.success) {
       console.log('\n✅ Data is now available on the website!');
       console.log('   https://jbaird-bitcraftmarkethelper.pages.dev/market-monitor.html');
     } else {
@@ -1339,6 +1375,8 @@ async function monitorMode(intervalSeconds = 120) {
   console.log('Press Ctrl+C to stop.\n');
 
   let runCount = 0;
+  // Reset run egress counter at the start of monitor mode
+  totalRunEgress = 0;
 
   const doUpdate = async () => {
     runCount++;
@@ -1352,7 +1390,15 @@ async function monitorMode(intervalSeconds = 120) {
 
       // Sync to Supabase
       console.log('\nSyncing to Supabase...');
-      await syncToSupabase();
+      const syncResult = await syncToSupabase();
+
+      // Track egress
+      if (syncResult && syncResult.egress) {
+        totalRunEgress += syncResult.egress;
+        console.log(`\n📊 Egress Stats:`);
+        console.log(`  This cycle: ${formatBytes(syncResult.egress)}`);
+        console.log(`  Total run:  ${formatBytes(totalRunEgress)}`);
+      }
 
       console.log(`\n✓ Update complete. Next check in ${intervalSeconds}s`);
     } catch (error) {
@@ -1490,11 +1536,21 @@ async function main() {
         break;
 
       case 'sync':
-        await syncToSupabase();
+        {
+          const syncResult = await syncToSupabase();
+          if (syncResult && syncResult.egress) {
+            console.log(`\n📊 Total egress used: ${formatBytes(syncResult.egress)}`);
+          }
+        }
         break;
 
       case 'sync-full':
-        await syncToSupabaseFull();
+        {
+          const syncResult = await syncToSupabaseFull();
+          if (syncResult && syncResult.egress) {
+            console.log(`\n📊 Total egress used: ${formatBytes(syncResult.egress)}`);
+          }
+        }
         break;
 
       case 'state':
