@@ -1367,11 +1367,47 @@ async function setupMode() {
 }
 
 /**
+ * Cleanup old market changes from Supabase (older than 8 hours)
+ */
+async function cleanupOldChanges() {
+  console.log('\n=== Cleaning up old market changes ===');
+
+  if (!supabaseClient) {
+    console.log('⚠ Supabase client not initialized. Skipping cleanup.');
+    return { success: false, deletedCount: 0 };
+  }
+
+  try {
+    // Calculate cutoff time (8 hours ago)
+    const cutoffTime = new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString();
+    console.log(`Deleting records older than: ${cutoffTime}`);
+
+    // Delete old records using Supabase REST API
+    // Format: timestamp=lt.{cutoffTime} means "timestamp less than cutoffTime"
+    const result = await supabaseClient.request(
+      'DELETE',
+      `/rest/v1/market_changes?timestamp=lt.${cutoffTime}`,
+      null,
+      { 'Prefer': 'return=representation' }
+    );
+
+    const deletedCount = Array.isArray(result) ? result.length : 0;
+    console.log(`✓ Deleted ${deletedCount} old change records`);
+
+    return { success: true, deletedCount };
+  } catch (error) {
+    console.error('✗ Error cleaning up old changes:', error.message);
+    return { success: false, deletedCount: 0 };
+  }
+}
+
+/**
  * Monitor mode - continuously check for changes and sync to worker
  */
 async function monitorMode(intervalSeconds = 120) {
   console.log('\n=== Continuous Monitor Mode ===');
   console.log(`Checking for changes every ${intervalSeconds} seconds.`);
+  console.log(`Cleaning up records older than 8 hours every hour.`);
   console.log('Press Ctrl+C to stop.\n');
 
   let runCount = 0;
@@ -1398,6 +1434,12 @@ async function monitorMode(intervalSeconds = 120) {
         console.log(`\n📊 Egress Stats:`);
         console.log(`  This cycle: ${formatBytes(syncResult.egress)}`);
         console.log(`  Total run:  ${formatBytes(totalRunEgress)}`);
+      }
+
+      // Run cleanup every hour (every 30th run if interval is 120s)
+      const runsPerHour = Math.ceil(3600 / intervalSeconds);
+      if (runCount % runsPerHour === 0) {
+        await cleanupOldChanges();
       }
 
       console.log(`\n✓ Update complete. Next check in ${intervalSeconds}s`);
@@ -1580,6 +1622,10 @@ async function main() {
         await debugClaim(claimName);
         break;
 
+      case 'cleanup':
+        await cleanupOldChanges();
+        break;
+
       case 'help':
       case '--help':
       case '-h':
@@ -1602,6 +1648,7 @@ Commands:
     changes [limit]         Show recent changes (default: 50)
     watch [interval]        Continuously monitor locally (default: 60s, no sync)
     debug <claim>           Debug orders for a specific claim name
+    cleanup                 Delete market changes older than 8 hours from Supabase
     reset                   Reset ALL data (local cache + Supabase database)
     help                    Show this help message
 
@@ -1668,5 +1715,6 @@ module.exports = {
   updateMarketData,
   debugClaim,
   syncToSupabase,
-  syncToSupabaseFull
+  syncToSupabaseFull,
+  cleanupOldChanges
 };
