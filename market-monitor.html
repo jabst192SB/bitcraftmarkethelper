@@ -1642,6 +1642,8 @@
                         <tr>
                             <th>Item Name</th>
                             <th>Tier</th>
+                            <th>Lowest Sell</th>
+                            <th>Highest Buy</th>
                             <th>Sell Orders</th>
                             <th>Buy Orders</th>
                             <th>Total Orders</th>
@@ -1674,12 +1676,43 @@
                                 totalOrdersHtml += ` <span class="change-indicator new">NEW</span>`;
                             }
 
+                            // Get order details for this item to find lowest sell and highest buy
+                            const orderDetails = data.orderDetails && data.orderDetails[item.id];
+                            let lowestSellHtml = '-';
+                            let highestBuyHtml = '-';
+
+                            if (orderDetails) {
+                                // Find lowest sell order
+                                if (orderDetails.sellOrders && orderDetails.sellOrders.length > 0) {
+                                    const lowestSell = orderDetails.sellOrders.reduce((min, order) =>
+                                        order.priceThreshold < min.priceThreshold ? order : min
+                                    );
+                                    lowestSellHtml = `
+                                        <div style="font-weight: bold; color: #f87171;">${Number(lowestSell.priceThreshold).toLocaleString()} hex</div>
+                                        <div style="font-size: 11px; color: #b0b0b0;">${escapeHtml(lowestSell.claimName)}</div>
+                                    `;
+                                }
+
+                                // Find highest buy order
+                                if (orderDetails.buyOrders && orderDetails.buyOrders.length > 0) {
+                                    const highestBuy = orderDetails.buyOrders.reduce((max, order) =>
+                                        order.priceThreshold > max.priceThreshold ? order : max
+                                    );
+                                    highestBuyHtml = `
+                                        <div style="font-weight: bold; color: #4ade80;">${Number(highestBuy.priceThreshold).toLocaleString()} hex</div>
+                                        <div style="font-size: 11px; color: #b0b0b0;">${escapeHtml(highestBuy.claimName)}</div>
+                                    `;
+                                }
+                            }
+
                             const rowClass = (prevItem && (item.sellOrders !== prevItem.sellOrders || item.buyOrders !== prevItem.buyOrders)) ? 'highlighted' : '';
 
                             return `
                                 <tr class="${rowClass}" onclick="viewItemDetails('${item.id}', '${escapeHtml(item.name)}')">
                                     <td><a href="https://bitjita.com/market/item/${item.id}" target="_blank" style="color: #4a9eff; text-decoration: none;">${escapeHtml(item.name)}</a></td>
                                     <td>${item.tier}</td>
+                                    <td>${lowestSellHtml}</td>
+                                    <td>${highestBuyHtml}</td>
                                     <td>${sellOrdersHtml}</td>
                                     <td>${buyOrdersHtml}</td>
                                     <td>${totalOrdersHtml}</td>
