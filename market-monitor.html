@@ -1167,6 +1167,8 @@
         let selectedTiers = new Set([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]); // All tiers selected by default
         let selectedCategory = ''; // Empty string means all categories
         let availableCategories = new Set(); // Categories from current orders
+        let itemSortColumn = 'tier'; // Default sort column for item view
+        let itemSortDirection = 'asc'; // 'asc' or 'desc'
 
         // ==========================================
         // INITIALIZATION
@@ -1633,20 +1635,150 @@
                 return;
             }
 
-            const items = [...data.currentState.items];
-            items.sort((a, b) => b.totalOrders - a.totalOrders);
+            // Get order type filters
+            const showBuyOrders = document.getElementById('showBuyOrders')?.checked ?? true;
+            const showSellOrders = document.getElementById('showSellOrders')?.checked ?? true;
+
+            // Get item filter
+            const itemFilter = document.getElementById('itemFilterInput')?.value.toLowerCase() || '';
+
+            // Get minimum hex filter
+            const minHexInput = document.getElementById('minHexFilter')?.value || '';
+            const minHex = minHexInput ? parseFloat(minHexInput) : 0;
+
+            // Apply filters to items
+            const items = [...data.currentState.items].filter(item => {
+                // Apply tier filter
+                if (item.tier && !selectedTiers.has(item.tier)) return false;
+
+                // Apply category filter
+                const itemCategory = item.tag || item.category || 'Unknown';
+                if (selectedCategory && itemCategory !== selectedCategory) return false;
+
+                // Apply item name/category filter
+                if (itemFilter) {
+                    const itemNameMatch = item.name.toLowerCase().includes(itemFilter);
+                    const categoryMatch = itemCategory.toLowerCase().includes(itemFilter);
+                    if (!itemNameMatch && !categoryMatch) return false;
+                }
+
+                // Get order details for filtering by price and order type
+                const orderDetails = currentOrderDetails && currentOrderDetails[item.id];
+                if (!orderDetails) return false;
+
+                // Apply minimum hex filter - check if any order meets the threshold
+                if (minHex > 0) {
+                    const hasSellAboveMin = showSellOrders && orderDetails.sellOrders?.some(order => order.priceThreshold >= minHex);
+                    const hasBuyAboveMin = showBuyOrders && orderDetails.buyOrders?.some(order => order.priceThreshold >= minHex);
+                    if (!hasSellAboveMin && !hasBuyAboveMin) return false;
+                }
+
+                // Apply order type filter - check if item has the requested order types
+                const hasSellOrders = orderDetails.sellOrders && orderDetails.sellOrders.length > 0;
+                const hasBuyOrders = orderDetails.buyOrders && orderDetails.buyOrders.length > 0;
+
+                if (!showSellOrders && !showBuyOrders) return false;
+                if (!showSellOrders && !hasBuyOrders) return false;
+                if (!showBuyOrders && !hasSellOrders) return false;
+
+                return true;
+            });
+
+            // Sort items based on current sort column and direction
+            items.sort((a, b) => {
+                let aVal, bVal;
+
+                // Get order details for price comparisons
+                const aOrderDetails = currentOrderDetails && currentOrderDetails[a.id];
+                const bOrderDetails = currentOrderDetails && currentOrderDetails[b.id];
+
+                switch (itemSortColumn) {
+                    case 'name':
+                        aVal = a.name.toLowerCase();
+                        bVal = b.name.toLowerCase();
+                        break;
+                    case 'tier':
+                        aVal = a.tier || 0;
+                        bVal = b.tier || 0;
+                        // Secondary sort by name for same tier
+                        if (aVal === bVal) {
+                            return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+                        }
+                        break;
+                    case 'category':
+                        aVal = (a.tag || a.category || 'Unknown').toLowerCase();
+                        bVal = (b.tag || b.category || 'Unknown').toLowerCase();
+                        break;
+                    case 'lowestSell':
+                        aVal = aOrderDetails?.sellOrders?.length > 0
+                            ? Math.min(...aOrderDetails.sellOrders.map(o => o.priceThreshold))
+                            : Infinity;
+                        bVal = bOrderDetails?.sellOrders?.length > 0
+                            ? Math.min(...bOrderDetails.sellOrders.map(o => o.priceThreshold))
+                            : Infinity;
+                        break;
+                    case 'highestBuy':
+                        aVal = aOrderDetails?.buyOrders?.length > 0
+                            ? Math.max(...aOrderDetails.buyOrders.map(o => o.priceThreshold))
+                            : -Infinity;
+                        bVal = bOrderDetails?.buyOrders?.length > 0
+                            ? Math.max(...bOrderDetails.buyOrders.map(o => o.priceThreshold))
+                            : -Infinity;
+                        break;
+                    case 'sellOrders':
+                        aVal = a.sellOrders || 0;
+                        bVal = b.sellOrders || 0;
+                        break;
+                    case 'buyOrders':
+                        aVal = a.buyOrders || 0;
+                        bVal = b.buyOrders || 0;
+                        break;
+                    case 'totalOrders':
+                        aVal = a.totalOrders || 0;
+                        bVal = b.totalOrders || 0;
+                        break;
+                    default:
+                        aVal = a.tier || 0;
+                        bVal = b.tier || 0;
+                }
+
+                // Apply sort direction
+                if (typeof aVal === 'string') {
+                    return itemSortDirection === 'asc'
+                        ? aVal.localeCompare(bVal)
+                        : bVal.localeCompare(aVal);
+                } else {
+                    return itemSortDirection === 'asc'
+                        ? aVal - bVal
+                        : bVal - aVal;
+                }
+            });
+
+            // Check if any items remain after filtering
+            if (items.length === 0) {
+                container.innerHTML = '<div class="no-orders-message">No items match the current filters.</div>';
+                return;
+            }
+
+            const getSortIndicator = (column) => {
+                if (itemSortColumn === column) {
+                    return itemSortDirection === 'asc' ? ' ▲' : ' ▼';
+                }
+                return '';
+            };
 
             const tableHtml = `
                 <table class="market-table">
                     <thead>
                         <tr>
-                            <th>Item Name</th>
-                            <th>Tier</th>
-                            <th>Lowest Sell</th>
-                            <th>Highest Buy</th>
-                            <th>Sell Orders</th>
-                            <th>Buy Orders</th>
-                            <th>Total Orders</th>
+                            <th onclick="sortItemTable('name')" style="cursor: pointer;">Item Name${getSortIndicator('name')}</th>
+                            <th onclick="sortItemTable('tier')" style="cursor: pointer;">Tier${getSortIndicator('tier')}</th>
+                            <th onclick="sortItemTable('category')" style="cursor: pointer;">Category${getSortIndicator('category')}</th>
+                            <th onclick="sortItemTable('lowestSell')" style="cursor: pointer;">Lowest Sell${getSortIndicator('lowestSell')}</th>
+                            <th onclick="sortItemTable('highestBuy')" style="cursor: pointer;">Highest Buy${getSortIndicator('highestBuy')}</th>
+                            <th onclick="sortItemTable('sellOrders')" style="cursor: pointer;">Sell Orders${getSortIndicator('sellOrders')}</th>
+                            <th onclick="sortItemTable('buyOrders')" style="cursor: pointer;">Buy Orders${getSortIndicator('buyOrders')}</th>
+                            <th onclick="sortItemTable('totalOrders')" style="cursor: pointer;">Total Orders${getSortIndicator('totalOrders')}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1677,7 +1809,7 @@
                             }
 
                             // Get order details for this item to find lowest sell and highest buy
-                            const orderDetails = data.orderDetails && data.orderDetails[item.id];
+                            const orderDetails = currentOrderDetails && currentOrderDetails[item.id];
                             let lowestSellHtml = '-';
                             let highestBuyHtml = '-';
 
@@ -1706,11 +1838,13 @@
                             }
 
                             const rowClass = (prevItem && (item.sellOrders !== prevItem.sellOrders || item.buyOrders !== prevItem.buyOrders)) ? 'highlighted' : '';
+                            const itemCategory = item.tag || item.category || 'Unknown';
 
                             return `
                                 <tr class="${rowClass}" onclick="viewItemDetails('${item.id}', '${escapeHtml(item.name)}')">
                                     <td><a href="https://bitjita.com/market/item/${item.id}" target="_blank" style="color: #4a9eff; text-decoration: none;">${escapeHtml(item.name)}</a></td>
                                     <td>${item.tier}</td>
+                                    <td>${escapeHtml(itemCategory)}</td>
                                     <td>${lowestSellHtml}</td>
                                     <td>${highestBuyHtml}</td>
                                     <td>${sellOrdersHtml}</td>
@@ -1737,6 +1871,21 @@
             document.getElementById('viewByClaimBtn').classList.toggle('active', mode === 'claim');
             document.getElementById('viewByItemBtn').classList.toggle('active', mode === 'item');
 
+            if (currentState) {
+                updateMarketTable({ currentState });
+            }
+        }
+
+        function sortItemTable(column) {
+            // Toggle direction if clicking same column, otherwise default to ascending
+            if (itemSortColumn === column) {
+                itemSortDirection = itemSortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                itemSortColumn = column;
+                itemSortDirection = 'asc';
+            }
+
+            // Re-render table with new sort
             if (currentState) {
                 updateMarketTable({ currentState });
             }
