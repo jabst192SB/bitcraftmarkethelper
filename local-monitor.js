@@ -645,6 +645,7 @@ async function updateMarketData(options = {}) {
       console.log(`\n✓ Detected ${detectedChanges.length} changes:`);
 
       // Attach order details and diff
+      let changesWithoutDetails = 0;
       const changesWithOrders = detectedChanges.map(change => {
         const currentDetails = orderDetails[change.itemId];
         const prevDetails = previousOrderDetails[change.itemId];
@@ -684,10 +685,20 @@ async function updateMarketData(options = {}) {
               console.log(`      BUY: ${o.claimName} - ${o.quantity} @ ${o.priceThreshold} hex`);
             });
           }
+        } else {
+          changesWithoutDetails++;
+          enhancedChange.missingOrderDetails = true;
+          console.warn(`  ⚠ ${change.itemName}: Change recorded without order details (not yet fetched)`);
         }
 
         return enhancedChange;
       });
+
+      if (changesWithoutDetails > 0) {
+        console.warn(`\n⚠ WARNING: ${changesWithoutDetails}/${detectedChanges.length} changes recorded WITHOUT detailed order information`);
+        console.warn(`  These changes will show in the UI but won't display individual added/removed orders`);
+        console.warn(`  Order details will be fetched in subsequent update cycles`);
+      }
 
       // Add to change history
       const changeEntry = {
@@ -967,19 +978,30 @@ async function updateMarketDataBulk(options = {}) {
     // Find missing items
     const missingDetailIds = allItemIds.filter(id => !orderDetails[id] && !orderDetails[String(id)]);
 
-    // Prioritize changed items
-    const itemIdsToFetch = [
-      ...changedItemIds,
-      ...missingDetailIds.filter(id => !changedItemIds.includes(id))
-    ].slice(0, maxDetailsFetch);
+    // PRIORITY CHANGE: Always fetch ALL changed items first to ensure accurate change diffs
+    // Changed items MUST have their order details to show added/removed orders
+    const changedItemsToFetch = marketData.items.filter(item => changedItemIds.includes(item.id));
 
-    if (itemIdsToFetch.length > 0) {
-      console.log(`\nFetching detailed orders for ${itemIdsToFetch.length} items (${changedItemIds.length} changed, ${missingDetailIds.length} missing)`);
+    if (changedItemsToFetch.length > 0) {
+      console.log(`\nFetching detailed orders for ${changedItemsToFetch.length} CHANGED items (required for accurate diffs)`);
       console.log(`⚠ Rate limiting active: 50ms between requests, 500ms between batches`);
 
-      const itemsToFetch = marketData.items.filter(item => itemIdsToFetch.includes(item.id));
-      const fetchedOrderDetails = await fetchOrdersForItems(itemsToFetch, maxDetailsFetch);
+      const fetchedOrderDetails = await fetchOrdersForItems(changedItemsToFetch);
       orderDetails = { ...orderDetails, ...fetchedOrderDetails };
+    }
+
+    // Then fetch missing items up to remaining capacity
+    const remainingCapacity = maxDetailsFetch - changedItemsToFetch.length;
+    if (remainingCapacity > 0 && missingDetailIds.length > 0) {
+      const missingItemsToFetch = marketData.items
+        .filter(item => missingDetailIds.includes(item.id))
+        .slice(0, remainingCapacity);
+
+      if (missingItemsToFetch.length > 0) {
+        console.log(`\nFetching detailed orders for ${missingItemsToFetch.length} missing items (gradual backfill)`);
+        const fetchedMissingDetails = await fetchOrdersForItems(missingItemsToFetch);
+        orderDetails = { ...orderDetails, ...fetchedMissingDetails };
+      }
     }
 
     // Detect changes with detailed order info
@@ -987,6 +1009,9 @@ async function updateMarketDataBulk(options = {}) {
 
     if (detectedChanges.length > 0) {
       console.log(`\n✓ Detected ${detectedChanges.length} changes with details`);
+
+      // Track changes without detailed order information
+      let changesWithoutDetails = 0;
 
       const changesWithOrders = detectedChanges.map(change => {
         const currentDetails = orderDetails[change.itemId];
@@ -1002,10 +1027,21 @@ async function updateMarketDataBulk(options = {}) {
           enhancedChange.removedOrders = orderDiff.removed;
           // Store minimal stats for quick reference
           enhancedChange.stats = currentDetails.stats || {};
+        } else {
+          changesWithoutDetails++;
+          // Mark changes without detailed order information
+          enhancedChange.missingOrderDetails = true;
+          console.warn(`  ⚠ ${change.itemName}: Change recorded without order details (not yet fetched)`);
         }
 
         return enhancedChange;
       });
+
+      if (changesWithoutDetails > 0) {
+        console.warn(`\n⚠ WARNING: ${changesWithoutDetails}/${detectedChanges.length} changes recorded WITHOUT detailed order information`);
+        console.warn(`  These changes will show in the UI but won't display individual added/removed orders`);
+        console.warn(`  Order details will be fetched in subsequent update cycles`);
+      }
 
       const changeEntry = {
         timestamp: Date.now(),
