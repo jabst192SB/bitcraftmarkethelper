@@ -662,27 +662,28 @@ async function updateMarketData(options = {}) {
           // Store minimal stats for quick reference
           enhancedChange.stats = currentDetails.stats || {};
 
-          // Log detailed change info
-          console.log(`  - ${change.itemName} (${change.type})`);
+          // Log detailed change info with tier and rarity
+          const itemInfo = `${change.itemName} [T${change.tier} ${change.rarity}]`;
+          console.log(`  - ${itemInfo} (${change.type})`);
           if (change.type === 'order_change') {
             console.log(`    Delta: sell ${change.delta.sellOrders > 0 ? '+' : ''}${change.delta.sellOrders}, buy ${change.delta.buyOrders > 0 ? '+' : ''}${change.delta.buyOrders}`);
           }
           if (orderDiff.added.sellOrders.length > 0 || orderDiff.added.buyOrders.length > 0) {
-            console.log(`    Added: ${orderDiff.added.sellOrders.length} sell, ${orderDiff.added.buyOrders.length} buy`);
+            console.log(`    📥 Added: ${orderDiff.added.sellOrders.length} sell, ${orderDiff.added.buyOrders.length} buy`);
             orderDiff.added.sellOrders.forEach(o => {
-              console.log(`      SELL: ${o.claimName} - ${o.quantity} @ ${o.priceThreshold} hex`);
+              console.log(`       ➕ SELL: ${o.claimName} - ${o.quantity} @ ${o.priceThreshold} hex`);
             });
             orderDiff.added.buyOrders.forEach(o => {
-              console.log(`      BUY: ${o.claimName} - ${o.quantity} @ ${o.priceThreshold} hex`);
+              console.log(`       ➕ BUY:  ${o.claimName} - ${o.quantity} @ ${o.priceThreshold} hex`);
             });
           }
           if (orderDiff.removed.sellOrders.length > 0 || orderDiff.removed.buyOrders.length > 0) {
-            console.log(`    Removed: ${orderDiff.removed.sellOrders.length} sell, ${orderDiff.removed.buyOrders.length} buy`);
+            console.log(`    📤 Removed: ${orderDiff.removed.sellOrders.length} sell, ${orderDiff.removed.buyOrders.length} buy`);
             orderDiff.removed.sellOrders.forEach(o => {
-              console.log(`      SELL: ${o.claimName} - ${o.quantity} @ ${o.priceThreshold} hex`);
+              console.log(`       ➖ SELL: ${o.claimName} - ${o.quantity} @ ${o.priceThreshold} hex`);
             });
             orderDiff.removed.buyOrders.forEach(o => {
-              console.log(`      BUY: ${o.claimName} - ${o.quantity} @ ${o.priceThreshold} hex`);
+              console.log(`       ➖ BUY:  ${o.claimName} - ${o.quantity} @ ${o.priceThreshold} hex`);
             });
           }
         } else {
@@ -779,25 +780,26 @@ function showChanges(limit = 50) {
     console.log(`[${new Date(entry.timestamp).toLocaleString()}]`);
 
     entry.changes.forEach(change => {
-      console.log(`  ${change.itemName}:`);
+      const itemInfo = `${change.itemName} [T${change.tier || '?'} ${change.rarity || 'Unknown'}]`;
+      console.log(`  ${itemInfo}:`);
 
       if (change.type === 'new_item') {
-        console.log(`    NEW - ${change.totalOrders} orders (${change.sellOrders} sell, ${change.buyOrders} buy)`);
+        console.log(`    🆕 NEW - ${change.totalOrders} orders (${change.sellOrders} sell, ${change.buyOrders} buy)`);
       } else if (change.type === 'order_change') {
-        console.log(`    CHANGED - sell ${change.delta.sellOrders > 0 ? '+' : ''}${change.delta.sellOrders}, buy ${change.delta.buyOrders > 0 ? '+' : ''}${change.delta.buyOrders}`);
+        console.log(`    🔄 CHANGED - sell ${change.delta.sellOrders > 0 ? '+' : ''}${change.delta.sellOrders}, buy ${change.delta.buyOrders > 0 ? '+' : ''}${change.delta.buyOrders}`);
       } else if (change.type === 'item_removed') {
-        console.log(`    REMOVED - all ${change.previous.totalOrders} orders gone`);
+        console.log(`    ❌ REMOVED - all ${change.previous.totalOrders} orders gone`);
       }
 
       if (change.addedOrders) {
         const totalAdded = change.addedOrders.sellOrders.length + change.addedOrders.buyOrders.length;
         if (totalAdded > 0) {
-          console.log(`    Added ${change.addedOrders.sellOrders.length} sell, ${change.addedOrders.buyOrders.length} buy orders`);
+          console.log(`    📥 Added ${change.addedOrders.sellOrders.length} sell, ${change.addedOrders.buyOrders.length} buy orders`);
           change.addedOrders.sellOrders.forEach(o => {
-            console.log(`      + SELL: ${o.claimName} - ${o.quantity} @ ${o.priceThreshold}`);
+            console.log(`       ➕ SELL: ${o.claimName} - ${o.quantity} @ ${o.priceThreshold}`);
           });
           change.addedOrders.buyOrders.forEach(o => {
-            console.log(`      + BUY: ${o.claimName} - ${o.quantity} @ ${o.priceThreshold}`);
+            console.log(`       ➕ BUY:  ${o.claimName} - ${o.quantity} @ ${o.priceThreshold}`);
           });
         }
       }
@@ -805,12 +807,12 @@ function showChanges(limit = 50) {
       if (change.removedOrders) {
         const totalRemoved = change.removedOrders.sellOrders.length + change.removedOrders.buyOrders.length;
         if (totalRemoved > 0) {
-          console.log(`    Removed ${change.removedOrders.sellOrders.length} sell, ${change.removedOrders.buyOrders.length} buy orders`);
+          console.log(`    📤 Removed ${change.removedOrders.sellOrders.length} sell, ${change.removedOrders.buyOrders.length} buy orders`);
           change.removedOrders.sellOrders.forEach(o => {
-            console.log(`      - SELL: ${o.claimName} - ${o.quantity} @ ${o.priceThreshold}`);
+            console.log(`       ➖ SELL: ${o.claimName} - ${o.quantity} @ ${o.priceThreshold}`);
           });
           change.removedOrders.buyOrders.forEach(o => {
-            console.log(`      - BUY: ${o.claimName} - ${o.quantity} @ ${o.priceThreshold}`);
+            console.log(`       ➖ BUY:  ${o.claimName} - ${o.quantity} @ ${o.priceThreshold}`);
           });
         }
       }
