@@ -456,6 +456,7 @@ function detectChanges(previousState, newState) {
           type: 'new_item',
           itemId: newItem.id,
           itemName: newItem.name,
+          itemType: newItem.itemType,
           tier: newItem.tier,
           rarity: newItem.rarityStr,
           sellOrders: newItem.sellOrders,
@@ -475,6 +476,7 @@ function detectChanges(previousState, newState) {
         type: 'order_change',
         itemId: newItem.id,
         itemName: newItem.name,
+        itemType: newItem.itemType,
         tier: newItem.tier,
         rarity: newItem.rarityStr,
         previous: {
@@ -503,6 +505,7 @@ function detectChanges(previousState, newState) {
         type: 'item_removed',
         itemId: prevItem.id,
         itemName: prevItem.name,
+        itemType: prevItem.itemType,
         tier: prevItem.tier,
         rarity: prevItem.rarityStr,
         previous: {

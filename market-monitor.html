@@ -1428,7 +1428,8 @@
                         name: item.name,
                         tier: item.tier,
                         rarity: item.rarityStr || item.rarity,
-                        category: item.tag || item.category || 'Unknown'
+                        category: item.tag || item.category || 'Unknown',
+                        itemType: item.itemType
                     });
                 });
             }
@@ -1440,7 +1441,8 @@
                     name: `Item ${itemId}`,
                     tier: 0,
                     rarity: 'Unknown',
-                    category: 'Unknown'
+                    category: 'Unknown',
+                    itemType: null
                 };
 
                 // Process sell orders
@@ -1461,6 +1463,7 @@
                             tier: item.tier,
                             rarity: item.rarity,
                             category: item.category,
+                            itemType: item.itemType,
                             price: order.priceThreshold,
                             quantity: 0,
                             ownerNames: new Set()
@@ -1490,6 +1493,7 @@
                             tier: item.tier,
                             rarity: item.rarity,
                             category: item.category,
+                            itemType: item.itemType,
                             price: order.priceThreshold,
                             quantity: 0,
                             ownerNames: new Set()
@@ -1564,7 +1568,7 @@
                             <div class="order-row">
                                 <span class="order-type ${group.type}">${group.type.toUpperCase()}</span>
                                 <span class="order-item-name">
-                                    <a href="https://bitjita.com/market/item/${group.itemId}" target="_blank">${escapeHtml(group.itemName)}</a>
+                                    <a href="https://bitjita.com/market/${group.itemType === 'cargo' ? 'cargo' : 'item'}/${group.itemId}?q=${encodeURIComponent(group.itemName.toLowerCase())}&hasOrders=true" target="_blank">${escapeHtml(group.itemName)}</a>
                                     <span class="order-metadata">
                                         ${group.tier ? `<span class="metadata-badge tier">T${group.tier}</span>` : ''}
                                         ${group.rarity ? `<span class="metadata-badge rarity">${escapeHtml(group.rarity)}</span>` : ''}
@@ -1841,8 +1845,8 @@
                             const itemCategory = item.tag || item.category || 'Unknown';
 
                             return `
-                                <tr class="${rowClass}" onclick="viewItemDetails('${item.id}', '${escapeHtml(item.name)}')">
-                                    <td><a href="https://bitjita.com/market/item/${item.id}" target="_blank" style="color: #4a9eff; text-decoration: none;">${escapeHtml(item.name)}</a></td>
+                                <tr class="${rowClass}" onclick="viewItemDetails('${item.id}', '${escapeHtml(item.name)}', '${item.itemType}')">
+                                    <td><a href="https://bitjita.com/market/${item.itemType === 'cargo' ? 'cargo' : 'item'}/${item.id}?q=${encodeURIComponent(item.name.toLowerCase())}&hasOrders=true" target="_blank" style="color: #4a9eff; text-decoration: none;">${escapeHtml(item.name)}</a></td>
                                     <td>${item.tier}</td>
                                     <td>${escapeHtml(itemCategory)}</td>
                                     <td>${lowestSellHtml}</td>
@@ -2099,7 +2103,7 @@
                             <div class="change-header">
                                 <div class="change-main-info">
                                     <div class="change-item-name">
-                                        <a href="https://bitjita.com/market/item/${change.itemId}" target="_blank" class="change-item-link">${escapeHtml(change.itemName)}</a>
+                                        <a href="https://bitjita.com/market/${change.itemType === 'cargo' ? 'cargo' : 'item'}/${change.itemId}?q=${encodeURIComponent(change.itemName.toLowerCase())}&hasOrders=true" target="_blank" class="change-item-link">${escapeHtml(change.itemName)}</a>
                                         <div class="change-item-meta">
                                             ${itemMeta}
                                         </div>
@@ -2214,8 +2218,9 @@
         // ==========================================
         // ITEM DETAILS
         // ==========================================
-        function viewItemDetails(itemId, itemName) {
-            window.open(`https://bitjita.com/market/item/${itemId}`, '_blank');
+        function viewItemDetails(itemId, itemName, itemType) {
+            const endpoint = itemType === 'cargo' ? 'cargo' : 'item';
+            window.open(`https://bitjita.com/market/${endpoint}/${itemId}?q=${encodeURIComponent(itemName.toLowerCase())}&hasOrders=true`, '_blank');
         }
 
         // ==========================================
