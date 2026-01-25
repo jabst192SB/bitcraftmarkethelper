@@ -651,13 +651,12 @@ async function updateMarketData(options = {}) {
         if (currentDetails) {
           const orderDiff = diffOrders(prevDetails, currentDetails);
 
-          enhancedChange.orderDetails = {
-            sellOrders: currentDetails.sellOrders || [],
-            buyOrders: currentDetails.buyOrders || [],
-            stats: currentDetails.stats || {}
-          };
+          // Store only added/removed orders (diff), not full orderDetails
+          // Full details are already in order_details table
           enhancedChange.addedOrders = orderDiff.added;
           enhancedChange.removedOrders = orderDiff.removed;
+          // Store minimal stats for quick reference
+          enhancedChange.stats = currentDetails.stats || {};
 
           // Log detailed change info
           console.log(`  - ${change.itemName} (${change.type})`);
@@ -994,13 +993,12 @@ async function updateMarketDataBulk(options = {}) {
 
         if (currentDetails) {
           const orderDiff = diffOrders(prevDetails, currentDetails);
-          enhancedChange.orderDetails = {
-            sellOrders: currentDetails.sellOrders || [],
-            buyOrders: currentDetails.buyOrders || [],
-            stats: currentDetails.stats || {}
-          };
+          // Store only added/removed orders (diff), not full orderDetails
+          // Full details are already in order_details table
           enhancedChange.addedOrders = orderDiff.added;
           enhancedChange.removedOrders = orderDiff.removed;
+          // Store minimal stats for quick reference
+          enhancedChange.stats = currentDetails.stats || {};
         }
 
         return enhancedChange;
@@ -1078,7 +1076,7 @@ async function syncToSupabase(options = {}) {
     // Step 1: Find changed market items only
     console.log('\n  Step 1/4: Checking for changed market items...');
 
-    const changedItems = [];
+    const changedItemsMap = new Map(); // Use Map to auto-deduplicate by item ID
     const itemsMap = new Map();
 
     state.currentState.items.forEach(item => {
@@ -1104,10 +1102,12 @@ async function syncToSupabase(options = {}) {
       });
 
       if (forceFullSync || state.syncState.syncedItemHashes[item.id] !== currentHash) {
-        changedItems.push(itemData);
+        changedItemsMap.set(item.id, itemData); // Map auto-deduplicates
         state.syncState.syncedItemHashes[item.id] = currentHash;
       }
     });
+
+    const changedItems = Array.from(changedItemsMap.values());
 
     if (changedItems.length > 0) {
       const itemsBytes = calculateByteSize(changedItems);
