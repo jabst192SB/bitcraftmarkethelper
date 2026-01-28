@@ -733,11 +733,11 @@ async function updateMarketData(options = {}) {
 
     saveState();
 
-    // Display detailed change information at the end
-    if (changeDetailsOutput.length > 0) {
-      console.log(`\n✓ Detected ${detectedChanges.length} changes with details`);
-      changeDetailsOutput.forEach(line => console.log(line));
-    }
+    // Return change details for display later (e.g., after egress stats in monitor mode)
+    return {
+      changeDetailsOutput,
+      detectedChanges: detectedChanges.length
+    };
 
   } catch (error) {
     console.error('\n✗ Error updating market data:', error);
@@ -1109,11 +1109,11 @@ async function updateMarketDataBulk(options = {}) {
 
     saveState();
 
-    // Display detailed change information at the end
-    if (changeDetailsOutput.length > 0) {
-      console.log(`\n✓ Detected ${detectedChanges.length} changes with details`);
-      changeDetailsOutput.forEach(line => console.log(line));
-    }
+    // Return change details for display later (e.g., after egress stats in monitor mode)
+    return {
+      changeDetailsOutput,
+      detectedChanges: detectedChanges.length
+    };
 
   } catch (error) {
     console.error('\n✗ Error updating market data:', error);
@@ -1506,7 +1506,7 @@ async function monitorMode(intervalSeconds = 120) {
 
     try {
       // Use bulk API to detect changes quickly
-      await updateMarketDataBulk({ maxDetailsFetch: 200 });
+      const updateResult = await updateMarketDataBulk({ maxDetailsFetch: 200 });
 
       // Sync to Supabase
       console.log('\nSyncing to Supabase...');
@@ -1518,6 +1518,12 @@ async function monitorMode(intervalSeconds = 120) {
         console.log(`\n📊 Egress Stats:`);
         console.log(`  This cycle: ${formatBytes(syncResult.egress)}`);
         console.log(`  Total run:  ${formatBytes(totalRunEgress)}`);
+      }
+
+      // Display detailed change information after egress stats
+      if (updateResult && updateResult.changeDetailsOutput && updateResult.changeDetailsOutput.length > 0) {
+        console.log(`\n✓ Detected ${updateResult.detectedChanges} changes with details`);
+        updateResult.changeDetailsOutput.forEach(line => console.log(line));
       }
 
       // Run cleanup every hour (every 30th run if interval is 120s)
@@ -1547,13 +1553,20 @@ async function watchMode(intervalSeconds = 60) {
   console.log(`\n=== Watch Mode ===`);
   console.log(`Monitoring every ${intervalSeconds} seconds. Press Ctrl+C to stop.\n`);
 
+  const doUpdate = async () => {
+    const updateResult = await updateMarketData();
+    // Display change details immediately in watch mode
+    if (updateResult && updateResult.changeDetailsOutput && updateResult.changeDetailsOutput.length > 0) {
+      console.log(`\n✓ Detected ${updateResult.detectedChanges} changes with details`);
+      updateResult.changeDetailsOutput.forEach(line => console.log(line));
+    }
+  };
+
   // Initial update
-  await updateMarketData();
+  await doUpdate();
 
   // Set up interval
-  setInterval(async () => {
-    await updateMarketData();
-  }, intervalSeconds * 1000);
+  setInterval(doUpdate, intervalSeconds * 1000);
 }
 
 /**
@@ -1644,12 +1657,26 @@ async function main() {
       case 'update':
         const maxItems = parseInt(args[1]) || 100;
         const fullUpdate = args.includes('--full');
-        await updateMarketData({ maxItemsPerUpdate: maxItems, fullUpdate });
+        {
+          const updateResult = await updateMarketData({ maxItemsPerUpdate: maxItems, fullUpdate });
+          // Display change details immediately for standalone update
+          if (updateResult && updateResult.changeDetailsOutput && updateResult.changeDetailsOutput.length > 0) {
+            console.log(`\n✓ Detected ${updateResult.detectedChanges} changes with details`);
+            updateResult.changeDetailsOutput.forEach(line => console.log(line));
+          }
+        }
         break;
 
       case 'update-bulk':
         const maxDetailsFetch = parseInt(args[1]) || 100;
-        await updateMarketDataBulk({ maxDetailsFetch });
+        {
+          const updateResult = await updateMarketDataBulk({ maxDetailsFetch });
+          // Display change details immediately for standalone update
+          if (updateResult && updateResult.changeDetailsOutput && updateResult.changeDetailsOutput.length > 0) {
+            console.log(`\n✓ Detected ${updateResult.detectedChanges} changes with details`);
+            updateResult.changeDetailsOutput.forEach(line => console.log(line));
+          }
+        }
         break;
 
       case 'setup':
