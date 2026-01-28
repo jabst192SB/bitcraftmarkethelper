@@ -850,6 +850,14 @@
             text-align: right;
         }
 
+        .order-row .order-total-value {
+            color: #a78bfa;
+            font-weight: 600;
+            min-width: 100px;
+            text-align: right;
+            margin-left: 15px;
+        }
+
         .order-row .order-metadata {
             display: flex;
             gap: 8px;
@@ -1066,6 +1074,30 @@
                        style="width: 120px; padding: 8px; background-color: #3a3a3a; border: 1px solid #4a4a4a; border-radius: 4px; color: #e0e0e0; font-size: 13px;"
                        oninput="applyMinHexFilter()">
                 <button class="claim-filter-clear" id="minHexClear" onclick="clearMinHexFilter()" style="display: none; position: static; transform: none; margin: 0 0 0 5px;">✕</button>
+            </div>
+
+            <div class="order-type-filters">
+                <span class="filter-label">Min Qty:</span>
+                <input type="number"
+                       id="minQuantityFilter"
+                       placeholder="0"
+                       min="0"
+                       step="1"
+                       style="width: 120px; padding: 8px; background-color: #3a3a3a; border: 1px solid #4a4a4a; border-radius: 4px; color: #e0e0e0; font-size: 13px;"
+                       oninput="applyMinQuantityFilter()">
+                <button class="claim-filter-clear" id="minQuantityClear" onclick="clearMinQuantityFilter()" style="display: none; position: static; transform: none; margin: 0 0 0 5px;">✕</button>
+            </div>
+
+            <div class="order-type-filters">
+                <span class="filter-label">Min Total Value:</span>
+                <input type="number"
+                       id="minTotalValueFilter"
+                       placeholder="0"
+                       min="0"
+                       step="1"
+                       style="width: 120px; padding: 8px; background-color: #3a3a3a; border: 1px solid #4a4a4a; border-radius: 4px; color: #e0e0e0; font-size: 13px;"
+                       oninput="applyMinTotalValueFilter()">
+                <button class="claim-filter-clear" id="minTotalValueClear" onclick="clearMinTotalValueFilter()" style="display: none; position: static; transform: none; margin: 0 0 0 5px;">✕</button>
             </div>
 
             <div class="order-type-filters" style="position: relative;">
@@ -1519,6 +1551,14 @@
             const minHexInput = document.getElementById('minHexFilter')?.value || '';
             const minHex = minHexInput ? parseFloat(minHexInput) : 0;
 
+            // Get minimum quantity filter
+            const minQuantityInput = document.getElementById('minQuantityFilter')?.value || '';
+            const minQuantity = minQuantityInput ? parseFloat(minQuantityInput) : 0;
+
+            // Get minimum total value filter
+            const minTotalValueInput = document.getElementById('minTotalValueFilter')?.value || '';
+            const minTotalValue = minTotalValueInput ? parseFloat(minTotalValueInput) : 0;
+
             // Filter by selected claim if applicable
             let claimsToRender = Array.from(claimOrdersMap.entries());
 
@@ -1544,6 +1584,13 @@
                         // Apply minimum hex filter
                         if (minHex > 0 && group.price < minHex) return false;
 
+                        // Apply minimum quantity filter
+                        if (minQuantity > 0 && group.quantity < minQuantity) return false;
+
+                        // Apply minimum total value filter (quantity * price)
+                        const totalValue = group.quantity * group.price;
+                        if (minTotalValue > 0 && totalValue < minTotalValue) return false;
+
                         // Apply tier filter
                         if (group.tier && !selectedTiers.has(group.tier)) return false;
 
@@ -1563,6 +1610,7 @@
                     .map(group => {
                         const ownerCount = group.ownerNames.size;
                         const ownerLabel = group.type === 'sell' ? 'sellers' : 'buyers';
+                        const totalValue = group.quantity * group.price;
 
                         return `
                             <div class="order-row">
@@ -1577,6 +1625,7 @@
                                 </span>
                                 <span class="order-qty">Qty: ${Number(group.quantity).toLocaleString()} (${ownerCount} ${ownerLabel})</span>
                                 <span class="order-price">${Number(group.price).toLocaleString()} hex</span>
+                                <span class="order-total-value">${Number(totalValue).toLocaleString()} hex</span>
                             </div>
                         `;
                     }).join('');
@@ -1588,6 +1637,13 @@
 
                     // Apply minimum hex filter
                     if (minHex > 0 && group.price < minHex) return false;
+
+                    // Apply minimum quantity filter
+                    if (minQuantity > 0 && group.quantity < minQuantity) return false;
+
+                    // Apply minimum total value filter
+                    const totalValue = group.quantity * group.price;
+                    if (minTotalValue > 0 && totalValue < minTotalValue) return false;
 
                     // Apply tier filter
                     if (group.tier && !selectedTiers.has(group.tier)) return false;
@@ -1650,6 +1706,14 @@
             const minHexInput = document.getElementById('minHexFilter')?.value || '';
             const minHex = minHexInput ? parseFloat(minHexInput) : 0;
 
+            // Get minimum quantity filter
+            const minQuantityInput = document.getElementById('minQuantityFilter')?.value || '';
+            const minQuantity = minQuantityInput ? parseFloat(minQuantityInput) : 0;
+
+            // Get minimum total value filter
+            const minTotalValueInput = document.getElementById('minTotalValueFilter')?.value || '';
+            const minTotalValue = minTotalValueInput ? parseFloat(minTotalValueInput) : 0;
+
             // Apply filters to items
             const items = [...data.currentState.items].filter(item => {
                 // Apply tier filter
@@ -1675,6 +1739,22 @@
                     const hasSellAboveMin = showSellOrders && orderDetails.sellOrders?.some(order => order.priceThreshold >= minHex);
                     const hasBuyAboveMin = showBuyOrders && orderDetails.buyOrders?.some(order => order.priceThreshold >= minHex);
                     if (!hasSellAboveMin && !hasBuyAboveMin) return false;
+                }
+
+                // Apply minimum quantity filter - check if any order meets the threshold
+                if (minQuantity > 0) {
+                    const hasSellAboveMinQty = showSellOrders && orderDetails.sellOrders?.some(order => order.quantity >= minQuantity);
+                    const hasBuyAboveMinQty = showBuyOrders && orderDetails.buyOrders?.some(order => order.quantity >= minQuantity);
+                    if (!hasSellAboveMinQty && !hasBuyAboveMinQty) return false;
+                }
+
+                // Apply minimum total value filter - check if any order meets the threshold
+                if (minTotalValue > 0) {
+                    const hasSellAboveMinValue = showSellOrders && orderDetails.sellOrders?.some(order =>
+                        (order.quantity * order.priceThreshold) >= minTotalValue);
+                    const hasBuyAboveMinValue = showBuyOrders && orderDetails.buyOrders?.some(order =>
+                        (order.quantity * order.priceThreshold) >= minTotalValue);
+                    if (!hasSellAboveMinValue && !hasBuyAboveMinValue) return false;
                 }
 
                 // Apply order type filter - check if item has the requested order types
@@ -1741,6 +1821,31 @@
                         aVal = a.totalOrders || 0;
                         bVal = b.totalOrders || 0;
                         break;
+                    case 'totalValue':
+                        // Calculate total value for sorting
+                        aVal = 0;
+                        bVal = 0;
+                        if (aOrderDetails) {
+                            if (aOrderDetails.sellOrders) {
+                                aVal += aOrderDetails.sellOrders.reduce((sum, order) =>
+                                    sum + (order.quantity * order.priceThreshold), 0);
+                            }
+                            if (aOrderDetails.buyOrders) {
+                                aVal += aOrderDetails.buyOrders.reduce((sum, order) =>
+                                    sum + (order.quantity * order.priceThreshold), 0);
+                            }
+                        }
+                        if (bOrderDetails) {
+                            if (bOrderDetails.sellOrders) {
+                                bVal += bOrderDetails.sellOrders.reduce((sum, order) =>
+                                    sum + (order.quantity * order.priceThreshold), 0);
+                            }
+                            if (bOrderDetails.buyOrders) {
+                                bVal += bOrderDetails.buyOrders.reduce((sum, order) =>
+                                    sum + (order.quantity * order.priceThreshold), 0);
+                            }
+                        }
+                        break;
                     default:
                         aVal = a.tier || 0;
                         bVal = b.tier || 0;
@@ -1783,6 +1888,7 @@
                             <th onclick="sortItemTable('sellOrders')" style="cursor: pointer;">Sell Orders${getSortIndicator('sellOrders')}</th>
                             <th onclick="sortItemTable('buyOrders')" style="cursor: pointer;">Buy Orders${getSortIndicator('buyOrders')}</th>
                             <th onclick="sortItemTable('totalOrders')" style="cursor: pointer;">Total Orders${getSortIndicator('totalOrders')}</th>
+                            <th onclick="sortItemTable('totalValue')" style="cursor: pointer;">Total Value${getSortIndicator('totalValue')}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1816,6 +1922,7 @@
                             const orderDetails = currentOrderDetails && currentOrderDetails[item.id];
                             let lowestSellHtml = '-';
                             let highestBuyHtml = '-';
+                            let totalValue = 0;
 
                             if (orderDetails) {
                                 // Find lowest sell order
@@ -1839,6 +1946,16 @@
                                         <div style="font-size: 11px; color: #b0b0b0;">${escapeHtml(highestBuy.claimName)}</div>
                                     `;
                                 }
+
+                                // Calculate total value (sum of all order quantities * prices)
+                                if (orderDetails.sellOrders) {
+                                    totalValue += orderDetails.sellOrders.reduce((sum, order) =>
+                                        sum + (order.quantity * order.priceThreshold), 0);
+                                }
+                                if (orderDetails.buyOrders) {
+                                    totalValue += orderDetails.buyOrders.reduce((sum, order) =>
+                                        sum + (order.quantity * order.priceThreshold), 0);
+                                }
                             }
 
                             const rowClass = (prevItem && (item.sellOrders !== prevItem.sellOrders || item.buyOrders !== prevItem.buyOrders)) ? 'highlighted' : '';
@@ -1854,6 +1971,7 @@
                                     <td>${sellOrdersHtml}</td>
                                     <td>${buyOrdersHtml}</td>
                                     <td>${totalOrdersHtml}</td>
+                                    <td style="font-weight: bold; color: #fbbf24;">${Number(totalValue).toLocaleString()} hex</td>
                                 </tr>
                             `;
                         }).join('')}
@@ -2457,6 +2575,56 @@
             const input = document.getElementById('minHexFilter');
             input.value = '';
             applyMinHexFilter();
+        }
+
+        // ==========================================
+        // MIN QUANTITY FILTER
+        // ==========================================
+        function applyMinQuantityFilter() {
+            const input = document.getElementById('minQuantityFilter');
+            const clearBtn = document.getElementById('minQuantityClear');
+
+            if (input.value && parseFloat(input.value) > 0) {
+                clearBtn.style.display = 'inline-block';
+            } else {
+                clearBtn.style.display = 'none';
+            }
+
+            // Re-render table with filter applied
+            if (currentState) {
+                updateMarketTable({ currentState });
+            }
+        }
+
+        function clearMinQuantityFilter() {
+            const input = document.getElementById('minQuantityFilter');
+            input.value = '';
+            applyMinQuantityFilter();
+        }
+
+        // ==========================================
+        // MIN TOTAL VALUE FILTER
+        // ==========================================
+        function applyMinTotalValueFilter() {
+            const input = document.getElementById('minTotalValueFilter');
+            const clearBtn = document.getElementById('minTotalValueClear');
+
+            if (input.value && parseFloat(input.value) > 0) {
+                clearBtn.style.display = 'inline-block';
+            } else {
+                clearBtn.style.display = 'none';
+            }
+
+            // Re-render table with filter applied
+            if (currentState) {
+                updateMarketTable({ currentState });
+            }
+        }
+
+        function clearMinTotalValueFilter() {
+            const input = document.getElementById('minTotalValueFilter');
+            input.value = '';
+            applyMinTotalValueFilter();
         }
 
         // ==========================================
