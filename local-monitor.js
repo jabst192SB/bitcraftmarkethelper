@@ -641,8 +641,11 @@ async function updateMarketData(options = {}) {
     // Detect changes
     const detectedChanges = detectChanges(previousState, marketData);
 
+    // Collect detailed change output to display at the end
+    const changeDetailsOutput = [];
+
     if (detectedChanges.length > 0) {
-      console.log(`\n✓ Detected ${detectedChanges.length} changes:`);
+      console.log(`\n✓ Detected ${detectedChanges.length} changes`);
 
       // Attach order details and diff
       let changesWithoutDetails = 0;
@@ -662,43 +665,43 @@ async function updateMarketData(options = {}) {
           // Store minimal stats for quick reference
           enhancedChange.stats = currentDetails.stats || {};
 
-          // Log detailed change info with tier and rarity
+          // Collect detailed change info for later display
           const itemInfo = `${change.itemName} [T${change.tier} ${change.rarity}]`;
-          console.log(`  - ${itemInfo} (${change.type})`);
+          changeDetailsOutput.push(`  - ${itemInfo} (${change.type})`);
           if (change.type === 'order_change') {
-            console.log(`    Delta: sell ${change.delta.sellOrders > 0 ? '+' : ''}${change.delta.sellOrders}, buy ${change.delta.buyOrders > 0 ? '+' : ''}${change.delta.buyOrders}`);
+            changeDetailsOutput.push(`    Delta: sell ${change.delta.sellOrders > 0 ? '+' : ''}${change.delta.sellOrders}, buy ${change.delta.buyOrders > 0 ? '+' : ''}${change.delta.buyOrders}`);
           }
           if (orderDiff.added.sellOrders.length > 0 || orderDiff.added.buyOrders.length > 0) {
-            console.log(`    📥 Added: ${orderDiff.added.sellOrders.length} sell, ${orderDiff.added.buyOrders.length} buy`);
+            changeDetailsOutput.push(`    📥 Added: ${orderDiff.added.sellOrders.length} sell, ${orderDiff.added.buyOrders.length} buy`);
             orderDiff.added.sellOrders.forEach(o => {
-              console.log(`       ➕ SELL: ${o.claimName} - ${o.quantity} @ ${o.priceThreshold} hex`);
+              changeDetailsOutput.push(`       ➕ SELL: ${o.claimName} - ${o.quantity} @ ${o.priceThreshold} hex`);
             });
             orderDiff.added.buyOrders.forEach(o => {
-              console.log(`       ➕ BUY:  ${o.claimName} - ${o.quantity} @ ${o.priceThreshold} hex`);
+              changeDetailsOutput.push(`       ➕ BUY:  ${o.claimName} - ${o.quantity} @ ${o.priceThreshold} hex`);
             });
           }
           if (orderDiff.removed.sellOrders.length > 0 || orderDiff.removed.buyOrders.length > 0) {
-            console.log(`    📤 Removed: ${orderDiff.removed.sellOrders.length} sell, ${orderDiff.removed.buyOrders.length} buy`);
+            changeDetailsOutput.push(`    📤 Removed: ${orderDiff.removed.sellOrders.length} sell, ${orderDiff.removed.buyOrders.length} buy`);
             orderDiff.removed.sellOrders.forEach(o => {
-              console.log(`       ➖ SELL: ${o.claimName} - ${o.quantity} @ ${o.priceThreshold} hex`);
+              changeDetailsOutput.push(`       ➖ SELL: ${o.claimName} - ${o.quantity} @ ${o.priceThreshold} hex`);
             });
             orderDiff.removed.buyOrders.forEach(o => {
-              console.log(`       ➖ BUY:  ${o.claimName} - ${o.quantity} @ ${o.priceThreshold} hex`);
+              changeDetailsOutput.push(`       ➖ BUY:  ${o.claimName} - ${o.quantity} @ ${o.priceThreshold} hex`);
             });
           }
         } else {
           changesWithoutDetails++;
           enhancedChange.missingOrderDetails = true;
-          console.warn(`  ⚠ ${change.itemName}: Change recorded without order details (not yet fetched)`);
+          changeDetailsOutput.push(`  ⚠ ${change.itemName}: Change recorded without order details (not yet fetched)`);
         }
 
         return enhancedChange;
       });
 
       if (changesWithoutDetails > 0) {
-        console.warn(`\n⚠ WARNING: ${changesWithoutDetails}/${detectedChanges.length} changes recorded WITHOUT detailed order information`);
-        console.warn(`  These changes will show in the UI but won't display individual added/removed orders`);
-        console.warn(`  Order details will be fetched in subsequent update cycles`);
+        changeDetailsOutput.push(`\n⚠ WARNING: ${changesWithoutDetails}/${detectedChanges.length} changes recorded WITHOUT detailed order information`);
+        changeDetailsOutput.push(`  These changes will show in the UI but won't display individual added/removed orders`);
+        changeDetailsOutput.push(`  Order details will be fetched in subsequent update cycles`);
       }
 
       // Add to change history
@@ -729,6 +732,12 @@ async function updateMarketData(options = {}) {
     console.log(`  - Total changes recorded: ${state.changeCount}`);
 
     saveState();
+
+    // Display detailed change information at the end
+    if (changeDetailsOutput.length > 0) {
+      console.log(`\n✓ Detected ${detectedChanges.length} changes with details`);
+      changeDetailsOutput.forEach(line => console.log(line));
+    }
 
   } catch (error) {
     console.error('\n✗ Error updating market data:', error);
@@ -1009,8 +1018,11 @@ async function updateMarketDataBulk(options = {}) {
     // Detect changes with detailed order info
     const detectedChanges = detectChanges(previousState, marketData);
 
+    // Collect detailed change output to display at the end
+    const changeDetailsOutput = [];
+
     if (detectedChanges.length > 0) {
-      console.log(`\n✓ Detected ${detectedChanges.length} changes with details`);
+      console.log(`\n✓ Detected ${detectedChanges.length} changes`);
 
       // Track changes without detailed order information
       let changesWithoutDetails = 0;
@@ -1030,44 +1042,44 @@ async function updateMarketDataBulk(options = {}) {
           // Store minimal stats for quick reference
           enhancedChange.stats = currentDetails.stats || {};
 
-          // Log detailed change info with tier and rarity
+          // Collect detailed change info for later display
           const itemInfo = `${change.itemName} [T${change.tier} ${change.rarity}]`;
-          console.log(`  - ${itemInfo} (${change.type})`);
+          changeDetailsOutput.push(`  - ${itemInfo} (${change.type})`);
           if (change.type === 'order_change') {
-            console.log(`    Delta: sell ${change.delta.sellOrders > 0 ? '+' : ''}${change.delta.sellOrders}, buy ${change.delta.buyOrders > 0 ? '+' : ''}${change.delta.buyOrders}`);
+            changeDetailsOutput.push(`    Delta: sell ${change.delta.sellOrders > 0 ? '+' : ''}${change.delta.sellOrders}, buy ${change.delta.buyOrders > 0 ? '+' : ''}${change.delta.buyOrders}`);
           }
           if (orderDiff.added.sellOrders.length > 0 || orderDiff.added.buyOrders.length > 0) {
-            console.log(`    📥 Added: ${orderDiff.added.sellOrders.length} sell, ${orderDiff.added.buyOrders.length} buy`);
+            changeDetailsOutput.push(`    📥 Added: ${orderDiff.added.sellOrders.length} sell, ${orderDiff.added.buyOrders.length} buy`);
             orderDiff.added.sellOrders.forEach(o => {
-              console.log(`       ➕ SELL: ${o.claimName} - ${o.quantity} @ ${o.priceThreshold} hex`);
+              changeDetailsOutput.push(`       ➕ SELL: ${o.claimName} - ${o.quantity} @ ${o.priceThreshold} hex`);
             });
             orderDiff.added.buyOrders.forEach(o => {
-              console.log(`       ➕ BUY:  ${o.claimName} - ${o.quantity} @ ${o.priceThreshold} hex`);
+              changeDetailsOutput.push(`       ➕ BUY:  ${o.claimName} - ${o.quantity} @ ${o.priceThreshold} hex`);
             });
           }
           if (orderDiff.removed.sellOrders.length > 0 || orderDiff.removed.buyOrders.length > 0) {
-            console.log(`    📤 Removed: ${orderDiff.removed.sellOrders.length} sell, ${orderDiff.removed.buyOrders.length} buy`);
+            changeDetailsOutput.push(`    📤 Removed: ${orderDiff.removed.sellOrders.length} sell, ${orderDiff.removed.buyOrders.length} buy`);
             orderDiff.removed.sellOrders.forEach(o => {
-              console.log(`       ➖ SELL: ${o.claimName} - ${o.quantity} @ ${o.priceThreshold} hex`);
+              changeDetailsOutput.push(`       ➖ SELL: ${o.claimName} - ${o.quantity} @ ${o.priceThreshold} hex`);
             });
             orderDiff.removed.buyOrders.forEach(o => {
-              console.log(`       ➖ BUY:  ${o.claimName} - ${o.quantity} @ ${o.priceThreshold} hex`);
+              changeDetailsOutput.push(`       ➖ BUY:  ${o.claimName} - ${o.quantity} @ ${o.priceThreshold} hex`);
             });
           }
         } else {
           changesWithoutDetails++;
           // Mark changes without detailed order information
           enhancedChange.missingOrderDetails = true;
-          console.warn(`  ⚠ ${change.itemName}: Change recorded without order details (not yet fetched)`);
+          changeDetailsOutput.push(`  ⚠ ${change.itemName}: Change recorded without order details (not yet fetched)`);
         }
 
         return enhancedChange;
       });
 
       if (changesWithoutDetails > 0) {
-        console.warn(`\n⚠ WARNING: ${changesWithoutDetails}/${detectedChanges.length} changes recorded WITHOUT detailed order information`);
-        console.warn(`  These changes will show in the UI but won't display individual added/removed orders`);
-        console.warn(`  Order details will be fetched in subsequent update cycles`);
+        changeDetailsOutput.push(`\n⚠ WARNING: ${changesWithoutDetails}/${detectedChanges.length} changes recorded WITHOUT detailed order information`);
+        changeDetailsOutput.push(`  These changes will show in the UI but won't display individual added/removed orders`);
+        changeDetailsOutput.push(`  Order details will be fetched in subsequent update cycles`);
       }
 
       const changeEntry = {
@@ -1096,6 +1108,12 @@ async function updateMarketDataBulk(options = {}) {
     console.log(`  - Total changes recorded: ${state.changeCount}`);
 
     saveState();
+
+    // Display detailed change information at the end
+    if (changeDetailsOutput.length > 0) {
+      console.log(`\n✓ Detected ${detectedChanges.length} changes with details`);
+      changeDetailsOutput.forEach(line => console.log(line));
+    }
 
   } catch (error) {
     console.error('\n✗ Error updating market data:', error);
