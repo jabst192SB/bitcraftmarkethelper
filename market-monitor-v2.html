@@ -1,0 +1,1247 @@
+  <!DOCTYPE html>
+  <html lang="en">
+  <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>MARKET SURVEILLANCE // Bitcraft Command Center</title>
+      <link rel="preconnect" href="https://fonts.googleapis.com">
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+      <link href="https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@400;600;800&family=Syne:wght@400;600;800&display=swap"
+  rel="stylesheet">
+      <style>
+          :root {
+              --bg-primary: #0a0e14;
+              --bg-secondary: #0f1419;
+              --bg-tertiary: #151b23;
+              --accent-cyan: #00ffd5;
+              --accent-green: #00ff41;
+              --accent-red: #ff0055;
+              --accent-orange: #ff9500;
+              --text-primary: #e6e6e6;
+              --text-secondary: #8b95a5;
+              --border-color: #1a2332;
+              --glow-cyan: rgba(0, 255, 213, 0.5);
+              --glow-green: rgba(0, 255, 65, 0.5);
+          }
+
+          * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+          }
+
+          body {
+              font-family: 'Azeret Mono', monospace;
+              background: var(--bg-primary);
+              color: var(--text-primary);
+              overflow-x: hidden;
+              position: relative;
+          }
+
+          /* Scanline overlay effect */
+          body::before {
+              content: '';
+              position: fixed;
+              top: 0;
+              left: 0;
+              width: 100%;
+              height: 100%;
+              background: repeating-linear-gradient(
+                  0deg,
+                  rgba(0, 255, 213, 0.03) 0px,
+                  transparent 1px,
+                  transparent 2px
+              );
+              pointer-events: none;
+              z-index: 9999;
+              animation: scanline 10s linear infinite;
+          }
+
+          @keyframes scanline {
+              0% { transform: translateY(0); }
+              100% { transform: translateY(100px); }
+          }
+
+          /* Noise texture */
+          body::after {
+              content: '';
+              position: fixed;
+              top: 0;
+              left: 0;
+              width: 100%;
+              height: 100%;
+              background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter
+  id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'
+  stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'
+  opacity='0.03'/%3E%3C/svg%3E");
+              pointer-events: none;
+              z-index: 9998;
+          }
+
+          .main-container {
+              min-height: 100vh;
+              padding: 0;
+              position: relative;
+          }
+
+          /* Header with glitch effect */
+          .command-header {
+              background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+              border-bottom: 2px solid var(--accent-cyan);
+              position: relative;
+              overflow: hidden;
+          }
+
+          .command-header::before {
+              content: '';
+              position: absolute;
+              top: 0;
+              left: -100%;
+              width: 100%;
+              height: 100%;
+              background: linear-gradient(90deg, transparent, rgba(0, 255, 213, 0.1), transparent);
+              animation: sweep 3s infinite;
+          }
+
+          @keyframes sweep {
+              0% { left: -100%; }
+              100% { left: 200%; }
+          }
+
+          .header-grid {
+              display: grid;
+              grid-template-columns: auto 1fr auto;
+              align-items: center;
+              gap: 2rem;
+              padding: 1.5rem 2rem;
+              position: relative;
+              z-index: 1;
+          }
+
+          .logo {
+              font-family: 'Syne', sans-serif;
+              font-weight: 800;
+              font-size: 1.5rem;
+              letter-spacing: -0.02em;
+              color: var(--accent-cyan);
+              text-transform: uppercase;
+              position: relative;
+              text-shadow: 0 0 20px var(--glow-cyan);
+          }
+
+          .system-time {
+              text-align: center;
+              font-size: 0.85rem;
+              color: var(--text-secondary);
+              letter-spacing: 0.1em;
+          }
+
+          .system-time .time-display {
+              font-size: 1.2rem;
+              color: var(--accent-cyan);
+              font-weight: 600;
+              margin-top: 0.25rem;
+              display: block;
+          }
+
+          .status-beacon {
+              display: flex;
+              align-items: center;
+              gap: 0.75rem;
+              font-size: 0.85rem;
+              text-transform: uppercase;
+              letter-spacing: 0.1em;
+          }
+
+          .beacon-dot {
+              width: 12px;
+              height: 12px;
+              border-radius: 50%;
+              background: var(--accent-green);
+              box-shadow: 0 0 10px var(--glow-green), 0 0 20px var(--glow-green);
+              animation: pulse-beacon 2s ease-in-out infinite;
+          }
+
+          @keyframes pulse-beacon {
+              0%, 100% {
+                  transform: scale(1);
+                  opacity: 1;
+              }
+              50% {
+                  transform: scale(1.2);
+                  opacity: 0.7;
+              }
+          }
+
+          .beacon-dot.error {
+              background: var(--accent-red);
+              box-shadow: 0 0 10px rgba(255, 0, 85, 0.5), 0 0 20px rgba(255, 0, 85, 0.5);
+          }
+
+          /* Navigation */
+          .nav-bar {
+              background: var(--bg-secondary);
+              border-bottom: 1px solid var(--border-color);
+              padding: 0.75rem 2rem;
+              display: flex;
+              gap: 0.5rem;
+          }
+
+          .nav-link {
+              padding: 0.5rem 1.25rem;
+              background: transparent;
+              border: 1px solid var(--border-color);
+              color: var(--text-secondary);
+              text-decoration: none;
+              font-size: 0.8rem;
+              text-transform: uppercase;
+              letter-spacing: 0.1em;
+              transition: all 0.3s ease;
+              position: relative;
+              overflow: hidden;
+          }
+
+          .nav-link::before {
+              content: '';
+              position: absolute;
+              top: 0;
+              left: -100%;
+              width: 100%;
+              height: 100%;
+              background: linear-gradient(90deg, transparent, rgba(0, 255, 213, 0.2), transparent);
+              transition: left 0.3s ease;
+          }
+
+          .nav-link:hover {
+              border-color: var(--accent-cyan);
+              color: var(--accent-cyan);
+          }
+
+          .nav-link:hover::before {
+              left: 100%;
+          }
+
+          /* Main dashboard grid */
+          .dashboard {
+              display: grid;
+              grid-template-columns: 300px 1fr;
+              grid-template-rows: auto 1fr;
+              gap: 1px;
+              background: var(--border-color);
+              min-height: calc(100vh - 140px);
+          }
+
+          /* Stats sidebar */
+          .stats-sidebar {
+              background: var(--bg-secondary);
+              padding: 2rem 1.5rem;
+              grid-row: 1 / -1;
+              border-right: 2px solid var(--accent-cyan);
+              position: relative;
+          }
+
+          .stats-sidebar::before {
+              content: '';
+              position: absolute;
+              top: 0;
+              right: 0;
+              width: 2px;
+              height: 100%;
+              background: linear-gradient(180deg, var(--accent-cyan), transparent);
+              animation: flow-down 2s linear infinite;
+          }
+
+          @keyframes flow-down {
+              0% {
+                  transform: translateY(-100%);
+                  opacity: 0;
+              }
+              50% {
+                  opacity: 1;
+              }
+              100% {
+                  transform: translateY(100%);
+                  opacity: 0;
+              }
+          }
+
+          .stat-block {
+              margin-bottom: 2rem;
+              padding-bottom: 2rem;
+              border-bottom: 1px solid var(--border-color);
+          }
+
+          .stat-block:last-child {
+              border-bottom: none;
+          }
+
+          .stat-label {
+              font-size: 0.7rem;
+              color: var(--text-secondary);
+              text-transform: uppercase;
+              letter-spacing: 0.15em;
+              margin-bottom: 0.5rem;
+          }
+
+          .stat-value {
+              font-family: 'Syne', sans-serif;
+              font-size: 2rem;
+              font-weight: 800;
+              color: var(--accent-cyan);
+              line-height: 1;
+              text-shadow: 0 0 10px var(--glow-cyan);
+              animation: flicker 3s infinite;
+          }
+
+          @keyframes flicker {
+              0%, 100% { opacity: 1; }
+              50% { opacity: 0.95; }
+          }
+
+          .stat-sublabel {
+              font-size: 0.75rem;
+              color: var(--text-secondary);
+              margin-top: 0.25rem;
+          }
+
+          /* Control panel */
+          .control-panel {
+              background: var(--bg-secondary);
+              padding: 1.5rem 2rem;
+              display: flex;
+              gap: 1rem;
+              flex-wrap: wrap;
+              align-items: center;
+              justify-content: space-between;
+          }
+
+          .control-group {
+              display: flex;
+              gap: 0.75rem;
+              align-items: center;
+          }
+
+          .btn {
+              padding: 0.6rem 1.5rem;
+              background: transparent;
+              border: 1px solid var(--accent-cyan);
+              color: var(--accent-cyan);
+              font-family: 'Azeret Mono', monospace;
+              font-size: 0.75rem;
+              text-transform: uppercase;
+              letter-spacing: 0.1em;
+              cursor: pointer;
+              transition: all 0.3s ease;
+              position: relative;
+              overflow: hidden;
+          }
+
+          .btn::before {
+              content: '';
+              position: absolute;
+              top: 50%;
+              left: 50%;
+              width: 0;
+              height: 0;
+              background: var(--accent-cyan);
+              border-radius: 50%;
+              transform: translate(-50%, -50%);
+              transition: width 0.4s ease, height 0.4s ease;
+          }
+
+          .btn:hover {
+              color: var(--bg-primary);
+          }
+
+          .btn:hover::before {
+              width: 300px;
+              height: 300px;
+          }
+
+          .btn span {
+              position: relative;
+              z-index: 1;
+          }
+
+          .btn-secondary {
+              border-color: var(--text-secondary);
+              color: var(--text-secondary);
+          }
+
+          .btn-secondary::before {
+              background: var(--text-secondary);
+          }
+
+          .filter-input {
+              padding: 0.6rem 1rem;
+              background: var(--bg-tertiary);
+              border: 1px solid var(--border-color);
+              color: var(--text-primary);
+              font-family: 'Azeret Mono', monospace;
+              font-size: 0.85rem;
+              min-width: 200px;
+              transition: border-color 0.3s ease, box-shadow 0.3s ease;
+          }
+
+          .filter-input:focus {
+              outline: none;
+              border-color: var(--accent-cyan);
+              box-shadow: 0 0 10px rgba(0, 255, 213, 0.2);
+          }
+
+          /* Main content area */
+          .content-area {
+              background: var(--bg-primary);
+              display: grid;
+              grid-template-rows: auto 1fr;
+              overflow: hidden;
+          }
+
+          /* Ticker tape */
+          .ticker-tape {
+              background: var(--bg-tertiary);
+              border-top: 1px solid var(--accent-green);
+              border-bottom: 1px solid var(--accent-green);
+              padding: 0.75rem 0;
+              overflow: hidden;
+              position: relative;
+          }
+
+          .ticker-content {
+              display: flex;
+              animation: ticker-scroll 30s linear infinite;
+              white-space: nowrap;
+          }
+
+          @keyframes ticker-scroll {
+              0% { transform: translateX(0); }
+              100% { transform: translateX(-50%); }
+          }
+
+          .ticker-item {
+              padding: 0 3rem;
+              font-size: 0.85rem;
+              display: inline-flex;
+              align-items: center;
+              gap: 0.75rem;
+          }
+
+          .ticker-symbol {
+              color: var(--accent-cyan);
+              font-weight: 600;
+          }
+
+          .ticker-change {
+              font-weight: 600;
+          }
+
+          .ticker-change.up {
+              color: var(--accent-green);
+          }
+
+          .ticker-change.down {
+              color: var(--accent-red);
+          }
+
+          /* Data grid */
+          .data-grid {
+              padding: 2rem;
+              overflow-y: auto;
+              display: grid;
+              grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+              gap: 1.5rem;
+              align-content: start;
+          }
+
+          /* Market card */
+          .market-card {
+              background: var(--bg-secondary);
+              border: 1px solid var(--border-color);
+              position: relative;
+              overflow: hidden;
+              transition: transform 0.3s ease, box-shadow 0.3s ease;
+              clip-path: polygon(0 0, calc(100% - 15px) 0, 100% 15px, 100% 100%, 0 100%);
+          }
+
+          .market-card:hover {
+              transform: translateY(-2px);
+              box-shadow: 0 10px 30px rgba(0, 255, 213, 0.15);
+              border-color: var(--accent-cyan);
+          }
+
+          .market-card::before {
+              content: '';
+              position: absolute;
+              top: 0;
+              right: 0;
+              width: 15px;
+              height: 15px;
+              background: var(--accent-cyan);
+              clip-path: polygon(100% 0, 100% 100%, 0 0);
+          }
+
+          .card-header {
+              padding: 1.25rem 1.5rem;
+              border-bottom: 1px solid var(--border-color);
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-start;
+              gap: 1rem;
+          }
+
+          .card-title {
+              font-family: 'Syne', sans-serif;
+              font-size: 1.1rem;
+              font-weight: 600;
+              color: var(--accent-cyan);
+              flex: 1;
+              word-break: break-word;
+          }
+
+          .card-tier {
+              padding: 0.25rem 0.75rem;
+              background: rgba(0, 255, 213, 0.1);
+              border: 1px solid var(--accent-cyan);
+              font-size: 0.7rem;
+              font-weight: 600;
+              letter-spacing: 0.1em;
+              white-space: nowrap;
+          }
+
+          .card-body {
+              padding: 1.5rem;
+          }
+
+          .order-section {
+              margin-bottom: 1.5rem;
+          }
+
+          .order-section:last-child {
+              margin-bottom: 0;
+          }
+
+          .order-type-header {
+              font-size: 0.75rem;
+              color: var(--text-secondary);
+              text-transform: uppercase;
+              letter-spacing: 0.15em;
+              margin-bottom: 0.75rem;
+              display: flex;
+              align-items: center;
+              gap: 0.5rem;
+          }
+
+          .order-type-indicator {
+              width: 8px;
+              height: 8px;
+              border-radius: 50%;
+          }
+
+          .order-type-indicator.buy {
+              background: var(--accent-green);
+              box-shadow: 0 0 10px var(--glow-green);
+          }
+
+          .order-type-indicator.sell {
+              background: var(--accent-red);
+              box-shadow: 0 0 10px rgba(255, 0, 85, 0.5);
+          }
+
+          .order-list {
+              display: flex;
+              flex-direction: column;
+              gap: 0.5rem;
+          }
+
+          .order-item {
+              padding: 0.75rem;
+              background: var(--bg-tertiary);
+              border-left: 2px solid var(--border-color);
+              font-size: 0.85rem;
+              display: grid;
+              grid-template-columns: 1fr auto;
+              gap: 1rem;
+              align-items: center;
+              transition: border-color 0.3s ease;
+          }
+
+          .order-item:hover {
+              border-left-color: var(--accent-cyan);
+          }
+
+          .order-claim {
+              color: var(--text-primary);
+              font-weight: 600;
+          }
+
+          .order-details {
+              text-align: right;
+              color: var(--text-secondary);
+              font-size: 0.75rem;
+          }
+
+          .order-price {
+              color: var(--accent-cyan);
+              font-weight: 600;
+              font-size: 0.9rem;
+          }
+
+          /* Change indicator badge */
+          .change-badge {
+              position: absolute;
+              top: 1rem;
+              left: -3px;
+              padding: 0.35rem 0.75rem;
+              font-size: 0.7rem;
+              font-weight: 600;
+              text-transform: uppercase;
+              letter-spacing: 0.1em;
+              clip-path: polygon(3px 0, 100% 0, 100% 100%, 0 100%, 0 3px);
+              animation: slide-in 0.5s ease-out;
+              z-index: 10;
+          }
+
+          @keyframes slide-in {
+              from {
+                  left: -100px;
+                  opacity: 0;
+              }
+              to {
+                  left: -3px;
+                  opacity: 1;
+              }
+          }
+
+          .change-badge.new {
+              background: var(--accent-green);
+              color: var(--bg-primary);
+          }
+
+          .change-badge.updated {
+              background: var(--accent-orange);
+              color: var(--bg-primary);
+          }
+
+          .change-badge.removed {
+              background: var(--accent-red);
+              color: var(--bg-primary);
+          }
+
+          /* Empty state */
+          .empty-state {
+              grid-column: 1 / -1;
+              text-align: center;
+              padding: 4rem 2rem;
+              color: var(--text-secondary);
+          }
+
+          .empty-state-icon {
+              font-size: 4rem;
+              margin-bottom: 1rem;
+              opacity: 0.3;
+          }
+
+          .empty-state-text {
+              font-size: 1.1rem;
+              margin-bottom: 0.5rem;
+          }
+
+          .empty-state-subtext {
+              font-size: 0.85rem;
+              opacity: 0.7;
+          }
+
+          /* Scrollbar styling */
+          .data-grid::-webkit-scrollbar {
+              width: 8px;
+          }
+
+          .data-grid::-webkit-scrollbar-track {
+              background: var(--bg-secondary);
+          }
+
+          .data-grid::-webkit-scrollbar-thumb {
+              background: var(--border-color);
+              border-radius: 4px;
+          }
+
+          .data-grid::-webkit-scrollbar-thumb:hover {
+              background: var(--accent-cyan);
+          }
+
+          /* Loading animation */
+          .loading-overlay {
+              position: fixed;
+              top: 0;
+              left: 0;
+              width: 100%;
+              height: 100%;
+              background: rgba(10, 14, 20, 0.95);
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: center;
+              gap: 2rem;
+              z-index: 10000;
+              opacity: 0;
+              pointer-events: none;
+              transition: opacity 0.3s ease;
+          }
+
+          .loading-overlay.active {
+              opacity: 1;
+              pointer-events: all;
+          }
+
+          .loading-spinner {
+              width: 60px;
+              height: 60px;
+              border: 3px solid var(--border-color);
+              border-top-color: var(--accent-cyan);
+              border-radius: 50%;
+              animation: spin 1s linear infinite;
+          }
+
+          @keyframes spin {
+              to { transform: rotate(360deg); }
+          }
+
+          .loading-text {
+              font-size: 0.9rem;
+              color: var(--accent-cyan);
+              text-transform: uppercase;
+              letter-spacing: 0.2em;
+              animation: pulse-text 2s ease-in-out infinite;
+          }
+
+          @keyframes pulse-text {
+              0%, 100% { opacity: 1; }
+              50% { opacity: 0.5; }
+          }
+
+          /* Responsive */
+          @media (max-width: 1200px) {
+              .dashboard {
+                  grid-template-columns: 250px 1fr;
+              }
+
+              .data-grid {
+                  grid-template-columns: 1fr;
+              }
+          }
+
+          @media (max-width: 768px) {
+              .dashboard {
+                  grid-template-columns: 1fr;
+              }
+
+              .stats-sidebar {
+                  grid-row: auto;
+                  border-right: none;
+                  border-bottom: 2px solid var(--accent-cyan);
+              }
+
+              .stats-sidebar::before {
+                  display: none;
+              }
+
+              .header-grid {
+                  grid-template-columns: 1fr;
+                  gap: 1rem;
+                  text-align: center;
+              }
+
+              .control-panel {
+                  flex-direction: column;
+                  align-items: stretch;
+              }
+
+              .control-group {
+                  flex-direction: column;
+                  gap: 0.5rem;
+              }
+
+              .filter-input {
+                  width: 100%;
+              }
+          }
+      </style>
+  </head>
+  <body>
+      <div class="main-container">
+          <!-- Loading overlay -->
+          <div class="loading-overlay" id="loadingOverlay">
+              <div class="loading-spinner"></div>
+              <div class="loading-text">SYNCHRONIZING DATA</div>
+          </div>
+
+          <!-- Header -->
+          <header class="command-header">
+              <div class="header-grid">
+                  <div class="logo">MARKET//SURVEILLANCE</div>
+                  <div class="system-time">
+                      <div>SYSTEM TIME</div>
+                      <span class="time-display" id="systemTime">--:--:--</span>
+                  </div>
+                  <div class="status-beacon">
+                      <div class="beacon-dot" id="statusBeacon"></div>
+                      <span id="statusText">ONLINE</span>
+                  </div>
+              </div>
+          </header>
+
+          <!-- Navigation -->
+          <nav class="nav-bar">
+              <a href="index.html" class="nav-link">Market Search</a>
+              <a href="gear-finder.html" class="nav-link">Gear Finder</a>
+              <a href="market-monitor.html" class="nav-link">Monitor</a>
+              <a href="help.html" class="nav-link">Help</a>
+          </nav>
+
+          <!-- Main Dashboard -->
+          <div class="dashboard">
+              <!-- Stats Sidebar -->
+              <aside class="stats-sidebar">
+                  <div class="stat-block">
+                      <div class="stat-label">TRACKED ITEMS</div>
+                      <div class="stat-value" id="trackedItems">0</div>
+                      <div class="stat-sublabel">Active Monitoring</div>
+                  </div>
+
+                  <div class="stat-block">
+                      <div class="stat-label">BUY ORDERS</div>
+                      <div class="stat-value" id="buyOrders" style="color: var(--accent-green); text-shadow: 0 0 10px
+  var(--glow-green);">0</div>
+                      <div class="stat-sublabel">Total Active</div>
+                  </div>
+
+                  <div class="stat-block">
+                      <div class="stat-label">SELL ORDERS</div>
+                      <div class="stat-value" id="sellOrders" style="color: var(--accent-red); text-shadow: 0 0 10px rgba(255, 0, 85,
+  0.5);">0</div>
+                      <div class="stat-sublabel">Total Active</div>
+                  </div>
+
+                  <div class="stat-block">
+                      <div class="stat-label">CHANGES (24H)</div>
+                      <div class="stat-value" id="changes24h" style="color: var(--accent-orange);">0</div>
+                      <div class="stat-sublabel">Market Activity</div>
+                  </div>
+
+                  <div class="stat-block">
+                      <div class="stat-label">NEXT UPDATE</div>
+                      <div class="stat-value" id="nextUpdate" style="font-size: 1.5rem;">--</div>
+                      <div class="stat-sublabel">Seconds</div>
+                  </div>
+              </aside>
+
+              <!-- Control Panel -->
+              <div class="control-panel">
+                  <div class="control-group">
+                      <button class="btn" id="refreshBtn">
+                          <span>⟳ REFRESH NOW</span>
+                      </button>
+                      <button class="btn btn-secondary" id="pauseBtn">
+                          <span id="pauseText">⏸ PAUSE</span>
+                      </button>
+                      <button class="btn btn-secondary" id="resetBtn">
+                          <span>↻ RESET</span>
+                      </button>
+                  </div>
+
+                  <div class="control-group">
+                      <input type="text" class="filter-input" id="claimFilter" placeholder="Filter by claim...">
+                      <input type="text" class="filter-input" id="itemFilter" placeholder="Filter by item...">
+                  </div>
+              </div>
+
+              <!-- Content Area -->
+              <div class="content-area">
+                  <!-- Ticker Tape -->
+                  <div class="ticker-tape">
+                      <div class="ticker-content" id="tickerContent">
+                          <div class="ticker-item">
+                              <span class="ticker-symbol">SYSTEM</span>
+                              <span>INITIALIZING...</span>
+                          </div>
+                      </div>
+                  </div>
+
+                  <!-- Data Grid -->
+                  <div class="data-grid" id="dataGrid">
+                      <div class="empty-state">
+                          <div class="empty-state-icon">◬</div>
+                          <div class="empty-state-text">NO DATA AVAILABLE</div>
+                          <div class="empty-state-subtext">Waiting for market data synchronization...</div>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      </div>
+
+      <script>
+          // Configuration
+          const API_BASE_URL = 'https://bitcraft-market-proxy.jbaird-cb6.workers.dev';
+          const REFRESH_INTERVAL = 30000; // 30 seconds
+          const SOLVENAR_REGION_ID = 4;
+
+          // State
+          let marketData = {};
+          let orderDetails = {};
+          let changes = [];
+          let isPaused = false;
+          let refreshTimer = null;
+          let nextUpdateCounter = null;
+          let filters = {
+              claim: '',
+              item: ''
+          };
+
+          // Initialize
+          async function init() {
+              updateSystemTime();
+              setInterval(updateSystemTime, 1000);
+
+              await loadMarketData();
+              startAutoRefresh();
+              setupEventListeners();
+          }
+
+          function setupEventListeners() {
+              document.getElementById('refreshBtn').addEventListener('click', () => {
+                  loadMarketData();
+              });
+
+              document.getElementById('pauseBtn').addEventListener('click', () => {
+                  togglePause();
+              });
+
+              document.getElementById('resetBtn').addEventListener('click', async () => {
+                  if (confirm('Reset all market data? This will clear the monitoring state.')) {
+                      await resetMonitor();
+                  }
+              });
+
+              document.getElementById('claimFilter').addEventListener('input', (e) => {
+                  filters.claim = e.target.value.toLowerCase();
+                  renderMarketCards();
+              });
+
+              document.getElementById('itemFilter').addEventListener('input', (e) => {
+                  filters.item = e.target.value.toLowerCase();
+                  renderMarketCards();
+              });
+          }
+
+          function updateSystemTime() {
+              const now = new Date();
+              const timeString = now.toLocaleTimeString('en-US', {
+                  hour12: false,
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit'
+              });
+              document.getElementById('systemTime').textContent = timeString;
+          }
+
+          async function loadMarketData() {
+              showLoading(true);
+              updateStatus('SYNCHRONIZING', 'loading');
+
+              try {
+                  const response = await fetch(`${API_BASE_URL}/api/monitor/state`);
+                  if (!response.ok) throw new Error('Failed to fetch market state');
+
+                  const data = await response.json();
+                  marketData = data.marketData || {};
+                  orderDetails = data.orderDetails || {};
+
+                  // Load changes
+                  const changesResponse = await fetch(`${API_BASE_URL}/api/monitor/changes?limit=100`);
+                  if (changesResponse.ok) {
+                      changes = await changesResponse.json();
+                  }
+
+                  updateStats();
+                  renderMarketCards();
+                  updateTicker();
+                  updateStatus('ONLINE', 'active');
+              } catch (error) {
+                  console.error('Error loading market data:', error);
+                  updateStatus('ERROR', 'error');
+              } finally {
+                  showLoading(false);
+              }
+          }
+
+          function updateStats() {
+              const items = Object.keys(orderDetails);
+              let totalBuy = 0;
+              let totalSell = 0;
+
+              items.forEach(itemId => {
+                  const details = orderDetails[itemId];
+                  if (details) {
+                      totalBuy += (details.buyOrders || []).length;
+                      totalSell += (details.sellOrders || []).length;
+                  }
+              });
+
+              document.getElementById('trackedItems').textContent = items.length;
+              document.getElementById('buyOrders').textContent = totalBuy;
+              document.getElementById('sellOrders').textContent = totalSell;
+              document.getElementById('changes24h').textContent = changes.length;
+          }
+
+          function renderMarketCards() {
+              const grid = document.getElementById('dataGrid');
+              const items = Object.entries(orderDetails);
+
+              if (items.length === 0) {
+                  grid.innerHTML = `
+                      <div class="empty-state">
+                          <div class="empty-state-icon">◬</div>
+                          <div class="empty-state-text">NO DATA AVAILABLE</div>
+                          <div class="empty-state-subtext">Waiting for market data synchronization...</div>
+                      </div>
+                  `;
+                  return;
+              }
+
+              // Filter items
+              const filteredItems = items.filter(([itemId, details]) => {
+                  if (!details) return false;
+
+                  // Claim filter
+                  if (filters.claim) {
+                      const hasClaim = [...(details.buyOrders || []), ...(details.sellOrders || [])]
+                          .some(order => order.claimName.toLowerCase().includes(filters.claim));
+                      if (!hasClaim) return false;
+                  }
+
+                  // Item filter
+                  if (filters.item) {
+                      const itemName = details.itemName || '';
+                      if (!itemName.toLowerCase().includes(filters.item)) return false;
+                  }
+
+                  return true;
+              });
+
+              if (filteredItems.length === 0) {
+                  grid.innerHTML = `
+                      <div class="empty-state">
+                          <div class="empty-state-icon">◬</div>
+                          <div class="empty-state-text">NO MATCHES FOUND</div>
+                          <div class="empty-state-subtext">Try adjusting your filters...</div>
+                      </div>
+                  `;
+                  return;
+              }
+
+              grid.innerHTML = filteredItems.map(([itemId, details]) => {
+                  return createMarketCard(itemId, details);
+              }).join('');
+          }
+
+          function createMarketCard(itemId, details) {
+              const buyOrders = (details.buyOrders || [])
+                  .filter(order => order.regionId === SOLVENAR_REGION_ID)
+                  .slice(0, 5);
+              const sellOrders = (details.sellOrders || [])
+                  .filter(order => order.regionId === SOLVENAR_REGION_ID)
+                  .slice(0, 5);
+
+              const itemName = details.itemName || `Item ${itemId}`;
+              const tier = details.tier || '?';
+
+              // Check if this item has recent changes
+              const recentChange = changes.find(c => c.itemId === parseInt(itemId));
+              let changeBadge = '';
+              if (recentChange) {
+                  const changeType = recentChange.changeType || 'updated';
+                  changeBadge = `<div class="change-badge ${changeType}">${changeType}</div>`;
+              }
+
+              return `
+                  <div class="market-card" data-item-id="${itemId}">
+                      ${changeBadge}
+                      <div class="card-header">
+                          <div class="card-title">${escapeHtml(itemName)}</div>
+                          <div class="card-tier">T${tier}</div>
+                      </div>
+                      <div class="card-body">
+                          ${buyOrders.length > 0 ? `
+                              <div class="order-section">
+                                  <div class="order-type-header">
+                                      <div class="order-type-indicator buy"></div>
+                                      BUY ORDERS (${buyOrders.length})
+                                  </div>
+                                  <div class="order-list">
+                                      ${buyOrders.map(order => `
+                                          <div class="order-item">
+                                              <div class="order-claim">${escapeHtml(order.claimName)}</div>
+                                              <div class="order-details">
+                                                  <div class="order-price">${order.priceThreshold}⬡</div>
+                                                  <div>Qty: ${order.quantity}</div>
+                                              </div>
+                                          </div>
+                                      `).join('')}
+                                  </div>
+                              </div>
+                          ` : ''}
+
+                          ${sellOrders.length > 0 ? `
+                              <div class="order-section">
+                                  <div class="order-type-header">
+                                      <div class="order-type-indicator sell"></div>
+                                      SELL ORDERS (${sellOrders.length})
+                                  </div>
+                                  <div class="order-list">
+                                      ${sellOrders.map(order => `
+                                          <div class="order-item">
+                                              <div class="order-claim">${escapeHtml(order.claimName)}</div>
+                                              <div class="order-details">
+                                                  <div class="order-price">${order.priceThreshold}⬡</div>
+                                                  <div>Qty: ${order.quantity}</div>
+                                              </div>
+                                          </div>
+                                      `).join('')}
+                                  </div>
+                              </div>
+                          ` : ''}
+
+                          ${buyOrders.length === 0 && sellOrders.length === 0 ? `
+                              <div style="text-align: center; color: var(--text-secondary); padding: 2rem 0; font-size: 0.85rem;">
+                                  NO ACTIVE ORDERS
+                              </div>
+                          ` : ''}
+                      </div>
+                  </div>
+              `;
+          }
+
+          function updateTicker() {
+              const ticker = document.getElementById('tickerContent');
+
+              if (changes.length === 0) {
+                  ticker.innerHTML = `
+                      <div class="ticker-item">
+                          <span class="ticker-symbol">SYSTEM</span>
+                          <span>NO RECENT CHANGES</span>
+                      </div>
+                  `.repeat(10);
+                  return;
+              }
+
+              const recentChanges = changes.slice(0, 20);
+              const tickerHTML = recentChanges.map(change => {
+                  const itemName = change.itemName || `Item ${change.itemId}`;
+                  const changeType = change.changeType || 'updated';
+                  const direction = change.delta > 0 ? 'up' : change.delta < 0 ? 'down' : '';
+
+                  return `
+                      <div class="ticker-item">
+                          <span class="ticker-symbol">${escapeHtml(itemName)}</span>
+                          <span class="ticker-change ${direction}">
+                              ${changeType.toUpperCase()} ${change.delta !== undefined ? `(${change.delta > 0 ? '+' :
+  ''}${change.delta})` : ''}
+                          </span>
+                      </div>
+                  `;
+              }).join('');
+
+              // Duplicate for seamless loop
+              ticker.innerHTML = tickerHTML + tickerHTML;
+          }
+
+          function startAutoRefresh() {
+              let secondsLeft = REFRESH_INTERVAL / 1000;
+
+              refreshTimer = setInterval(() => {
+                  if (!isPaused) {
+                      loadMarketData();
+                      secondsLeft = REFRESH_INTERVAL / 1000;
+                  }
+              }, REFRESH_INTERVAL);
+
+              nextUpdateCounter = setInterval(() => {
+                  if (!isPaused) {
+                      secondsLeft--;
+                      if (secondsLeft < 0) secondsLeft = REFRESH_INTERVAL / 1000;
+                      document.getElementById('nextUpdate').textContent = secondsLeft;
+                  }
+              }, 1000);
+          }
+
+          function togglePause() {
+              isPaused = !isPaused;
+              const pauseBtn = document.getElementById('pauseText');
+
+              if (isPaused) {
+                  pauseBtn.textContent = '▶ RESUME';
+                  updateStatus('PAUSED', 'error');
+              } else {
+                  pauseBtn.textContent = '⏸ PAUSE';
+                  updateStatus('ONLINE', 'active');
+              }
+          }
+
+          async function resetMonitor() {
+              showLoading(true);
+              try {
+                  const response = await fetch(`${API_BASE_URL}/api/monitor/reset`, {
+                      method: 'POST'
+                  });
+
+                  if (response.ok) {
+                      marketData = {};
+                      orderDetails = {};
+                      changes = [];
+                      updateStats();
+                      renderMarketCards();
+                      updateTicker();
+                      updateStatus('ONLINE', 'active');
+                  }
+              } catch (error) {
+                  console.error('Error resetting monitor:', error);
+                  updateStatus('ERROR', 'error');
+              } finally {
+                  showLoading(false);
+              }
+          }
+
+          function updateStatus(text, status) {
+              const statusText = document.getElementById('statusText');
+              const beacon = document.getElementById('statusBeacon');
+
+              statusText.textContent = text;
+              beacon.className = 'beacon-dot';
+
+              if (status === 'active') {
+                  // No additional class needed - default is green
+              } else if (status === 'error') {
+                  beacon.classList.add('error');
+              }
+          }
+
+          function showLoading(show) {
+              const overlay = document.getElementById('loadingOverlay');
+              if (show) {
+                  overlay.classList.add('active');
+              } else {
+                  overlay.classList.remove('active');
+              }
+          }
+
+          function escapeHtml(text) {
+              const div = document.createElement('div');
+              div.textContent = text;
+              return div.innerHTML;
+          }
+
+          // Start the application
+          init();
+      </script>
+  </body>
+  </html>
