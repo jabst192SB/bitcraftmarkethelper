@@ -23,10 +23,13 @@ require('dotenv').config(); // Load .env file
 // Import Supabase client
 const SupabaseClient = require('./supabase-client.js').default;
 
-// Configuration
-const TARGET_API = 'https://bitjita.com';
-const MONITOR_REGION_ID = 4; // Solvenar
-const STATE_FILE = path.join(__dirname, 'local-monitor-state.json');
+// Configuration - loaded from config-node.js
+const CONFIG = require('./config-node.js');
+
+// Backward compatibility - keep these for existing code
+const TARGET_API = CONFIG.TARGET_API;
+const MONITOR_REGION_ID = CONFIG.MONITOR_REGION_ID;
+const STATE_FILE = path.join(__dirname, CONFIG.STATE_FILE);
 
 // Initialize Supabase client
 let supabaseClient = null;
@@ -150,8 +153,41 @@ async function fetchMarketData() {
 }
 
 /**
- * Fetch bulk price data for multiple items at once (max 100 per request)
- * Much faster than individual requests - use this for detecting changes!
+ * Fetch price summaries for multiple items in a single API call
+ *
+ * Uses the /api/market/prices/bulk endpoint which is MUCH faster than
+ * individual item requests. This endpoint returns only price/quantity
+ * summaries, not full order details.
+ *
+ * **Performance**: Can fetch 100 items in ~1 second vs. 50+ seconds
+ * for individual requests.
+ *
+ * **Limitations**:
+ * - Max 100 items per request
+ * - Does not include individual order details (claimName, ownerName, etc.)
+ * - Returns aggregate stats only
+ *
+ * @param {number[]} itemIds - Array of item IDs (max 100)
+ * @param {number[]} [cargoIds=[]] - Array of cargo IDs (max 100 combined)
+ * @returns {Promise<Object>} Map of item ID to price data:
+ *   {
+ *     itemId: {
+ *       lowestSell: number|null,
+ *       highestBuy: number|null,
+ *       sellQuantity: number,
+ *       buyQuantity: number,
+ *       sellOrders: number, // Count, not array
+ *       buyOrders: number,  // Count, not array
+ *       totalOrders: number
+ *     }
+ *   }
+ * @throws {Error} If API returns non-200 status
+ *
+ * @example
+ * // Fetch prices for 3 items
+ * const prices = await fetchBulkPrices([123, 456, 789]);
+ * console.log(prices[123].lowestSell); // 100
+ * console.log(prices[123].sellOrders); // 5 (count, not array!)
  */
 async function fetchBulkPrices(itemIds, cargoIds = []) {
   const apiUrl = `${TARGET_API}/api/market/prices/bulk`;
@@ -523,6 +559,26 @@ function detectChanges(previousState, newState) {
 /**
  * Diff orders between previous and current
  */
+/**
+ * Compare previous and current order details to detect added/removed orders
+ *
+ * Creates unique keys for each order using claimEntityId, ownerEntityId,
+ * regionId, priceThreshold, and quantity. The ownerEntityId is CRITICAL
+ * because multiple players from the same claim can create identical orders
+ * (same price, same quantity). Without ownerEntityId, these orders would
+ * be treated as duplicates and one would be lost in the Map.
+ *
+ * @param {Object|null} prevDetails - Previous order details (null on first run)
+ * @param {Object} currentDetails - Current order details
+ * @param {Array} currentDetails.sellOrders - Current sell orders
+ * @param {Array} currentDetails.buyOrders - Current buy orders
+ * @returns {Object} Diff result: {added: {sellOrders, buyOrders}, removed: {sellOrders, buyOrders}}
+ *
+ * @example
+ * const diff = diffOrders(prevDetails, currentDetails);
+ * console.log(diff.added.sellOrders);   // [newOrder]
+ * console.log(diff.removed.buyOrders);  // [removedOrder]
+ */
 function diffOrders(prevDetails, currentDetails) {
   const added = { sellOrders: [], buyOrders: [] };
   const removed = { sellOrders: [], buyOrders: [] };
@@ -534,7 +590,7 @@ function diffOrders(prevDetails, currentDetails) {
   }
 
   const createOrderKey = (order) =>
-    `${order.claimEntityId || order.claimName}_${order.priceThreshold}_${order.quantity}`;
+    `${order.claimEntityId || order.claimName}_${order.ownerEntityId || order.ownerName}_${order.regionId}_${order.priceThreshold}_${order.quantity}`;
 
   // Diff sell orders
   const prevSellKeys = new Map();

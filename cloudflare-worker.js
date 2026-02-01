@@ -8,11 +8,33 @@
  * 4. Provides real-time updates to frontend clients
  */
 
-// Target API endpoint
-const TARGET_API = 'https://bitjita.com';
+// ============================================
+// CONFIGURATION
+// ============================================
+const WORKER_CONFIG = {
+  // External API
+  TARGET_API: 'https://bitjita.com',
 
-// Region ID for Solvenar (used to filter orders)
-const MONITOR_REGION_ID = 4;
+  // Region Settings
+  MONITOR_REGION_ID: 4, // Solvenar
+
+  // Worker Limits (Cloudflare constraints)
+  MAX_SUBREQUESTS_PER_RUN: 50, // Cloudflare limit
+  MAX_ITEMS_PER_RUN: 40, // Safe buffer under subrequest limit
+  MAX_STORED_ITEMS: 500, // Prevent Durable Object bloat
+
+  // Chunking (SQLite row size limits)
+  ITEMS_PER_CHUNK: 500,
+  CHANGES_PER_CHUNK: 100,
+
+  // Rate Limiting
+  BATCH_SIZE: 40,
+  DELAY_BETWEEN_BATCHES_MS: 100,
+};
+
+// Backward compatibility - keep these for existing code
+const TARGET_API = WORKER_CONFIG.TARGET_API;
+const MONITOR_REGION_ID = WORKER_CONFIG.MONITOR_REGION_ID;
 
 /**
  * Durable Object: MarketMonitor
@@ -199,8 +221,22 @@ export class MarketMonitor {
 
   /**
    * Update state with new market data and detect changes
-   * @param {Object} newData - Market data with items array
-   * @param {Object} orderDetails - Optional order details keyed by item ID
+   *
+   * This is the core monitoring function that:
+   * 1. Reconstructs previous state from chunked storage
+   * 2. Detects changes between previous and current state
+   * 3. Updates stored state with chunking (500 items per chunk)
+   * 4. Stores change history with chunking (100 changes per chunk)
+   * 5. Stores individual order details (up to 120KB each)
+   * 6. Prunes old data to prevent storage bloat
+   *
+   * @param {Object} newData - Market data from bitjita API
+   * @param {Array} newData.items - Array of market items with order counts
+   * @param {Object} [orderDetails={}] - Optional detailed orders keyed by item ID
+   * @returns {Promise<void>}
+   *
+   * @example
+   * await updateState({ items: [...] }, { 123: { sellOrders: [...], buyOrders: [...] } });
    */
   async updateState(newData, orderDetails = {}) {
     const previousState = await this.reconstructCurrentState();
@@ -357,7 +393,24 @@ export class MarketMonitor {
   }
 
   /**
-   * Diff orders between previous and current state to find added/removed orders
+   * Compare previous and current order details to detect added/removed orders
+   *
+   * Creates unique keys for each order using claimEntityId, ownerEntityId,
+   * regionId, priceThreshold, and quantity. The ownerEntityId is CRITICAL
+   * because multiple players from the same claim can create identical orders
+   * (same price, same quantity). Without ownerEntityId, these orders would
+   * be treated as duplicates and one would be lost in the Map.
+   *
+   * @param {Object|null} prevDetails - Previous order details (null on first run)
+   * @param {Object} currentDetails - Current order details
+   * @param {Array} currentDetails.sellOrders - Current sell orders
+   * @param {Array} currentDetails.buyOrders - Current buy orders
+   * @returns {Object} Diff result: {added: {sellOrders, buyOrders}, removed: {sellOrders, buyOrders}}
+   *
+   * @example
+   * const diff = diffOrders(prevDetails, currentDetails);
+   * console.log(diff.added.sellOrders);   // [newOrder]
+   * console.log(diff.removed.buyOrders);  // [removedOrder]
    */
   diffOrders(prevDetails, currentDetails) {
     const added = { sellOrders: [], buyOrders: [] };
@@ -386,9 +439,9 @@ export class MarketMonitor {
       return { added, removed };
     }
 
-    // Create order keys for comparison (claimEntityId + price + type is unique enough)
+    // Create order keys for comparison (claimEntityId + ownerEntityId + regionId + price + quantity for uniqueness)
     const createOrderKey = (order) =>
-      `${order.claimEntityId || order.claimName}_${order.priceThreshold}_${order.quantity}`;
+      `${order.claimEntityId || order.claimName}_${order.ownerEntityId || order.ownerName}_${order.regionId}_${order.priceThreshold}_${order.quantity}`;
 
     // Diff sell orders
     const prevSellKeys = new Map();

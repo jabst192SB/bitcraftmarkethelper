@@ -15,16 +15,18 @@ const BitcraftUtils = (() => {
     // ============================================
     // CONFIGURATION
     // ============================================
+    // Config is now loaded from config-browser.js (window.BitcraftConfig)
+    // This provides fallback values if config file is not loaded
 
     const CONFIG = {
-        API_BASE_URL: 'https://bitcraft-market-proxy.jbaird-cb6.workers.dev',
-        BITJITA_URL: 'https://bitjita.com',
-        DEFAULT_REGION_ID: 4, // Solvenar
-        TOAST_DURATION: 3000,
-        DEBOUNCE_DELAY: 300,
-        ITEMS_CACHE_KEY: 'bitcraftMarketHelper_itemsCache',
-        ITEMS_CACHE_VERSION: 'v1',
-        UI_VERSION_KEY: 'bitcraftMarketHelper_uiVersion'
+        get API_BASE_URL() { return window.BitcraftConfig?.API_BASE_URL || 'https://bitcraft-market-proxy.jbaird-cb6.workers.dev'; },
+        get BITJITA_URL() { return window.BitcraftConfig?.BITJITA_URL || 'https://bitjita.com'; },
+        get DEFAULT_REGION_ID() { return window.BitcraftConfig?.DEFAULT_REGION_ID || 4; },
+        get TOAST_DURATION() { return window.BitcraftConfig?.UI?.TOAST_DURATION || 3000; },
+        get DEBOUNCE_DELAY() { return window.BitcraftConfig?.UI?.DEBOUNCE_DELAY || 300; },
+        get ITEMS_CACHE_KEY() { return window.BitcraftConfig?.CACHE?.ITEMS_KEY || 'bitcraftMarketHelper_itemsCache'; },
+        get ITEMS_CACHE_VERSION() { return window.BitcraftConfig?.CACHE?.ITEMS_VERSION || 'v1'; },
+        get UI_VERSION_KEY() { return window.BitcraftConfig?.UI?.VERSION_KEY || 'bitcraftMarketHelper_uiVersion'; }
     };
 
     // ============================================
@@ -209,10 +211,21 @@ const BitcraftUtils = (() => {
     // ============================================
 
     /**
-     * Debounce a function
+     * Debounce a function - delays execution until after wait time has elapsed since last call
+     *
+     * Useful for expensive operations that shouldn't run on every keystroke or scroll event.
+     * Waits for a pause in the calling pattern before executing.
+     *
      * @param {Function} func - Function to debounce
-     * @param {number} wait - Wait time in ms
-     * @returns {Function} - Debounced function
+     * @param {number} [wait] - Wait time in ms (default from CONFIG.DEBOUNCE_DELAY)
+     * @returns {Function} Debounced function that delays execution
+     *
+     * @example
+     * // Search as user types, but only after they stop typing for 300ms
+     * const debouncedSearch = debounce((query) => {
+     *   console.log('Searching for:', query);
+     * }, 300);
+     * input.addEventListener('keyup', (e) => debouncedSearch(e.target.value));
      */
     function debounce(func, wait = CONFIG.DEBOUNCE_DELAY) {
         let timeout;
@@ -398,11 +411,30 @@ const BitcraftUtils = (() => {
     // ============================================
 
     /**
-     * Fetch data with error handling and retry logic
+     * Fetch data with error handling and exponential backoff retry logic
+     *
+     * Automatically handles:
+     * - 429 Rate Limiting: Waits 2^n * 1000ms before retry
+     * - Network errors: Waits 2^n * 500ms before retry
+     * - Non-200 status codes: Throws error with status/statusText
+     *
      * @param {string} url - URL to fetch
-     * @param {Object} options - Fetch options
-     * @param {number} retries - Number of retries
-     * @returns {Promise<any>} - Response data
+     * @param {Object} [options={}] - Fetch options (method, headers, body, etc.)
+     * @param {number} [retries=3] - Maximum number of retry attempts
+     * @returns {Promise<any>} Parsed JSON response data
+     * @throws {Error} If all retries fail or response is not OK
+     *
+     * @example
+     * // Fetch with automatic retry on failure
+     * const data = await fetchWithRetry('https://api.example.com/data');
+     *
+     * @example
+     * // POST with retry
+     * const result = await fetchWithRetry('https://api.example.com/submit', {
+     *   method: 'POST',
+     *   headers: { 'Content-Type': 'application/json' },
+     *   body: JSON.stringify({ key: 'value' })
+     * }, 5);
      */
     async function fetchWithRetry(url, options = {}, retries = 3) {
         let lastError;
@@ -435,6 +467,49 @@ const BitcraftUtils = (() => {
         }
 
         throw lastError;
+    }
+
+    /**
+     * Fetch with cache support
+     * @param {string} url - URL to fetch
+     * @param {Object} options - Fetch options
+     * @param {Object} cacheOptions - Cache options {key, ttl, enabled}
+     * @returns {Promise<any>} - Response data
+     */
+    async function fetchWithCache(url, options = {}, cacheOptions = {}) {
+        const {
+            key = null,
+            ttl = 15 * 60 * 1000, // Default 15 minutes
+            enabled = window.BitcraftConfig?.FEATURES?.ENABLE_CACHING !== false
+        } = cacheOptions;
+
+        // Skip cache if disabled or no key provided
+        if (!enabled || !key) {
+            const response = await fetch(url, options);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return await response.json();
+        }
+
+        // Check cache first
+        const cached = window.CacheManager?.get(key);
+        if (cached) {
+            return cached;
+        }
+
+        // Cache miss - fetch from API
+        const response = await fetch(url, options);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+
+        // Store in cache
+        window.CacheManager?.set(key, data, ttl);
+
+        return data;
     }
 
     /**
@@ -797,6 +872,7 @@ const BitcraftUtils = (() => {
 
         // API
         fetchWithRetry,
+        fetchWithCache,
         buildApiUrl,
 
         // Caching
