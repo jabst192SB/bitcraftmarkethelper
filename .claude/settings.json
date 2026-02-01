@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status)",
+      "Bash(git status *)",
+      "Bash(git diff)",
+      "Bash(git diff *)",
+      "Bash(git log)",
+      "Bash(git log *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(git branch)",
+      "Bash(git branch *)",
+      "Bash(git checkout *)",
+      "Bash(node *)",
+      "Bash(npm install)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(npm test)",
+      "Bash(npm test *)",
+      "Bash(npm start)",
+      "Bash(wrangler deploy)",
+      "Bash(wrangler deploy *)",
+      "Bash(wrangler tail)",
+      "Bash(wrangler tail *)",
+      "Bash(python *)",
+      "Bash(ls)",
+      "Bash(ls *)"
+    ]
+  }
+}

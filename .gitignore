@@ -4,8 +4,9 @@ node_modules/
 # Wrangler build artifacts and state
 .wrangler/
 
-# Claude settings
-.claude/
+# Claude settings (except shared settings.json)
+.claude/*
+!.claude/settings.json
 
 # Windows reserved filenames
 nul
