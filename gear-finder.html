@@ -1171,9 +1171,8 @@
             }
 
             try {
-                const apiUrl = API_BASE_URL
-                    ? `${API_BASE_URL}/api/players?q=${encodeURIComponent(query)}`
-                    : `https://bitjita.com/api/players?q=${encodeURIComponent(query)}`;
+                // Always use direct bitjita.com endpoint for player searches (not proxied)
+                const apiUrl = `https://bitjita.com/api/players?q=${encodeURIComponent(query)}`;
 
                 const response = await fetch(apiUrl);
 
