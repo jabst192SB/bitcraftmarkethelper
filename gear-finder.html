@@ -694,9 +694,152 @@
             font-weight: 600;
             margin-right: 6px;
         }
+        /* Player Header Styles */
+        .player-header {
+            background-color: #2a2a2a;
+            border-bottom: 2px solid #4a4a4a;
+            padding: 10px 20px;
+            margin: -20px -20px 20px -20px;
+        }
+
+        .player-header-content {
+            max-width: 1600px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .player-search-container {
+            position: relative;
+            flex: 0 0 300px;
+        }
+
+        .player-search-input {
+            width: 100%;
+            padding: 8px 12px;
+            background-color: #3a3a3a;
+            border: 1px solid #4a4a4a;
+            border-radius: 4px;
+            color: #e0e0e0;
+            font-size: 13px;
+        }
+
+        .player-search-input:focus {
+            outline: none;
+            border-color: #4a9eff;
+        }
+
+        .player-results-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background-color: #3a3a3a;
+            border: 1px solid #4a4a4a;
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 2000;
+            display: none;
+        }
+
+        .player-result-item {
+            padding: 10px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #2a2a2a;
+        }
+
+        .player-result-item:hover {
+            background-color: #4a4a4a;
+        }
+
+        .player-result-item:last-child {
+            border-bottom: none;
+        }
+
+        .player-result-username {
+            color: #4a9eff;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .player-result-details {
+            color: #b0b0b0;
+            font-size: 11px;
+            margin-top: 2px;
+        }
+
+        .player-result-online {
+            color: #4ade80;
+        }
+
+        .player-result-offline {
+            color: #f87171;
+        }
+
+        .current-player-display {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #e0e0e0;
+            font-size: 14px;
+        }
+
+        .current-player-name {
+            color: #4a9eff;
+            font-weight: 500;
+        }
+
+        .player-clear-btn {
+            padding: 4px 10px;
+            background-color: #f87171;
+            color: #1a1a1a;
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .player-clear-btn:hover {
+            background-color: #ff8a8a;
+        }
+
+        @media (max-width: 768px) {
+            .player-header-content {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .player-search-container {
+                flex: 1 1 auto;
+            }
+        }
     </style>
 </head>
 <body>
+    <!-- Player ID Header -->
+    <div class="player-header">
+        <div class="player-header-content">
+            <div class="player-search-container">
+                <input
+                    type="text"
+                    id="playerSearchInput"
+                    class="player-search-input"
+                    placeholder="🔍 Search for your player name..."
+                    autocomplete="off"
+                >
+                <div class="player-results-dropdown" id="playerResultsDropdown"></div>
+            </div>
+            <div class="current-player-display" id="currentPlayerDisplay">
+                <span style="color: #b0b0b0;">No player selected</span>
+            </div>
+        </div>
+    </div>
+
     <div class="container">
         <h1>⚔️ Gear Finder - Bitcraft Market Helper
             <span class="tooltip">
@@ -960,6 +1103,168 @@
         // For GITHUB PAGES: Set this to your Cloudflare Worker URL
         // Example: 'https://bitcraft-market-proxy.YOUR_SUBDOMAIN.workers.dev'
         const API_BASE_URL = 'https://bitcraft-market-proxy.jbaird-cb6.workers.dev';
+
+        // ==========================================
+        // PLAYER ID MANAGEMENT
+        // ==========================================
+        const PLAYER_STORAGE_KEY = 'bitcraft_player_id';
+        let currentPlayer = null;
+        let playerSearchTimeout = null;
+
+        // Get current player from localStorage
+        function getCurrentPlayer() {
+            const stored = localStorage.getItem(PLAYER_STORAGE_KEY);
+            if (stored) {
+                try {
+                    return JSON.parse(stored);
+                } catch (e) {
+                    console.error('Failed to parse stored player data:', e);
+                    return null;
+                }
+            }
+            return null;
+        }
+
+        // Get current player's entity ID (for use in other features)
+        function getCurrentPlayerId() {
+            return currentPlayer ? currentPlayer.entityId : null;
+        }
+
+        // Save player to localStorage
+        function savePlayer(player) {
+            localStorage.setItem(PLAYER_STORAGE_KEY, JSON.stringify(player));
+            currentPlayer = player;
+            updatePlayerDisplay();
+        }
+
+        // Clear saved player
+        function clearPlayer() {
+            localStorage.removeItem(PLAYER_STORAGE_KEY);
+            currentPlayer = null;
+            updatePlayerDisplay();
+            document.getElementById('playerSearchInput').value = '';
+        }
+
+        // Update player display in header
+        function updatePlayerDisplay() {
+            const displayElement = document.getElementById('currentPlayerDisplay');
+            if (!displayElement) return;
+
+            if (currentPlayer) {
+                const hoursPlayed = Math.floor(currentPlayer.timePlayed / 3600);
+                displayElement.innerHTML = `
+                    <span style="color: #b0b0b0;">Player:</span>
+                    <span class="current-player-name">${currentPlayer.username}</span>
+                    <span style="color: #b0b0b0; font-size: 12px;">(${hoursPlayed}h played)</span>
+                    <button class="player-clear-btn" onclick="clearPlayer()">✕ Clear</button>
+                `;
+            } else {
+                displayElement.innerHTML = '<span style="color: #b0b0b0;">No player selected</span>';
+            }
+        }
+
+        // Search for players via API
+        async function searchPlayers(query) {
+            if (!query || query.trim().length < 2) {
+                document.getElementById('playerResultsDropdown').style.display = 'none';
+                return;
+            }
+
+            try {
+                const apiUrl = API_BASE_URL
+                    ? `${API_BASE_URL}/api/players?q=${encodeURIComponent(query)}`
+                    : `https://bitjita.com/api/players?q=${encodeURIComponent(query)}`;
+
+                const response = await fetch(apiUrl);
+
+                if (!response.ok) {
+                    throw new Error(`API returned ${response.status}`);
+                }
+
+                const data = await response.json();
+                displayPlayerResults(data.players || []);
+            } catch (error) {
+                console.error('Player search failed:', error);
+                const dropdown = document.getElementById('playerResultsDropdown');
+                dropdown.innerHTML = '<div class="player-result-item"><span style="color: #f87171;">Search failed. Please try again.</span></div>';
+                dropdown.style.display = 'block';
+            }
+        }
+
+        // Display player search results
+        function displayPlayerResults(players) {
+            const dropdown = document.getElementById('playerResultsDropdown');
+
+            if (players.length === 0) {
+                dropdown.innerHTML = '<div class="player-result-item"><span style="color: #b0b0b0;">No players found</span></div>';
+                dropdown.style.display = 'block';
+                return;
+            }
+
+            dropdown.innerHTML = players.map(player => {
+                const hoursPlayed = Math.floor(player.timePlayed / 3600);
+                const statusClass = player.signedIn ? 'player-result-online' : 'player-result-offline';
+                const statusText = player.signedIn ? 'Online' : 'Offline';
+                const createdDate = new Date(player.createdAt).toLocaleDateString();
+
+                return `
+                    <div class="player-result-item" onclick='selectPlayer(${JSON.stringify(player)})'>
+                        <div class="player-result-username">${player.username}</div>
+                        <div class="player-result-details">
+                            <span class="${statusClass}">${statusText}</span> •
+                            ${hoursPlayed}h played •
+                            Created ${createdDate}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            dropdown.style.display = 'block';
+        }
+
+        // Select a player from search results
+        function selectPlayer(player) {
+            savePlayer(player);
+            document.getElementById('playerSearchInput').value = player.username;
+            document.getElementById('playerResultsDropdown').style.display = 'none';
+
+            // Show success toast
+            showToast(`Player ${player.username} selected!`, 'success');
+        }
+
+        // Initialize player search on page load
+        function initPlayerSearch() {
+            const searchInput = document.getElementById('playerSearchInput');
+            const dropdown = document.getElementById('playerResultsDropdown');
+
+            if (!searchInput || !dropdown) return;
+
+            // Load saved player
+            currentPlayer = getCurrentPlayer();
+            updatePlayerDisplay();
+
+            // Search input handler with debounce
+            searchInput.addEventListener('input', (e) => {
+                clearTimeout(playerSearchTimeout);
+                playerSearchTimeout = setTimeout(() => {
+                    searchPlayers(e.target.value);
+                }, 300);
+            });
+
+            // Close dropdown when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
+                    dropdown.style.display = 'none';
+                }
+            });
+
+            // Focus shows dropdown if there are results
+            searchInput.addEventListener('focus', () => {
+                if (dropdown.innerHTML && searchInput.value.trim().length >= 2) {
+                    dropdown.style.display = 'block';
+                }
+            });
+        }
 
         // ==========================================
         // Don't modify below this line
@@ -2361,6 +2666,9 @@
         }
 
         window.addEventListener('DOMContentLoaded', initVersionToggle);
+
+        // Initialize player search on page load
+        window.addEventListener('DOMContentLoaded', initPlayerSearch);
 
         // ==========================================
         // EXPORT TO CSV
