@@ -1328,6 +1328,9 @@
                 setupEventListeners();
 
                 console.log(`Loaded ${items.length} items and ${cargo.length} cargo`);
+
+                // Restore URL state immediately after items are loaded (no delay needed)
+                restoreFromUrl();
             } catch (error) {
                 showError('Failed to load items.json: ' + error.message);
             }
@@ -1644,7 +1647,10 @@
             }
 
             items.forEach(item => {
-                const priceData = bulkData.data.items[item.id];
+                // Handle both string and integer keys in API response, and check cargo data for cargo items
+                const priceData = item.itemType === 'cargo'
+                    ? (bulkData.data.cargo?.[item.id] || bulkData.data.cargo?.[parseInt(item.id)])
+                    : (bulkData.data.items?.[item.id] || bulkData.data.items?.[parseInt(item.id)]);
                 if (!priceData || priceData.lowestSellPrice === null) return;
 
                 const key = `${item.name}|${item.tier}|${item.tag}`;
@@ -1767,13 +1773,13 @@
 
             resultsBody.innerHTML = data.map(row => `
                 <tr>
-                    <td><a href="https://bitjita.com/market/${row.isCargo ? 'cargo' : 'item'}/${row.itemId}?q=${encodeURIComponent(row.itemName.toLowerCase())}&hasOrders=true" target="_blank" class="item-link">${row.isCargo ? '<span class="cargo-label">[Cargo]</span>' : ''}${row.itemName}</a></td>
+                    <td><a href="https://bitjita.com/market/${row.isCargo ? 'cargo' : 'item'}/${row.itemId}?q=${encodeURIComponent(row.itemName.toLowerCase())}&hasOrders=true" target="_blank" class="item-link">${row.isCargo ? '<span class="cargo-label">[Cargo]</span>' : ''}${BitcraftUtils.escapeHtml(row.itemName)}</a></td>
                     <td>${row.tier}</td>
                     <td class="${row.common !== null ? 'price-cell' : 'price-na'}">
                         ${row.common !== null && row.commonItemId
                             ? `<div class="price-with-claim">
                                  <a href="https://bitjita.com/market/${row.isCargo ? 'cargo' : 'item'}/${row.commonItemId}?q=${encodeURIComponent(row.itemName.toLowerCase())}&hasOrders=true" target="_blank" class="item-link">${row.common} hex</a>
-                                 ${row.commonClaim ? `<div class="claim-name">${row.commonClaim}</div>` : ''}
+                                 ${row.commonClaim ? `<div class="claim-name">${BitcraftUtils.escapeHtml(row.commonClaim)}</div>` : ''}
                                </div>`
                             : (row.common !== null ? row.common + ' hex' : 'N/A')}
                     </td>
@@ -1781,7 +1787,7 @@
                         ${row.uncommon !== null && row.uncommonItemId
                             ? `<div class="price-with-claim">
                                  <a href="https://bitjita.com/market/${row.isCargo ? 'cargo' : 'item'}/${row.uncommonItemId}?q=${encodeURIComponent(row.itemName.toLowerCase())}&hasOrders=true" target="_blank" class="item-link">${row.uncommon} hex</a>
-                                 ${row.uncommonClaim ? `<div class="claim-name">${row.uncommonClaim}</div>` : ''}
+                                 ${row.uncommonClaim ? `<div class="claim-name">${BitcraftUtils.escapeHtml(row.uncommonClaim)}</div>` : ''}
                                </div>`
                             : (row.uncommon !== null ? row.uncommon + ' hex' : 'N/A')}
                     </td>
@@ -1789,7 +1795,7 @@
                         ${row.rare !== null && row.rareItemId
                             ? `<div class="price-with-claim">
                                  <a href="https://bitjita.com/market/${row.isCargo ? 'cargo' : 'item'}/${row.rareItemId}?q=${encodeURIComponent(row.itemName.toLowerCase())}&hasOrders=true" target="_blank" class="item-link">${row.rare} hex</a>
-                                 ${row.rareClaim ? `<div class="claim-name">${row.rareClaim}</div>` : ''}
+                                 ${row.rareClaim ? `<div class="claim-name">${BitcraftUtils.escapeHtml(row.rareClaim)}</div>` : ''}
                                </div>`
                             : (row.rare !== null ? row.rare + ' hex' : 'N/A')}
                     </td>
@@ -1797,7 +1803,7 @@
                         ${row.epic !== null && row.epicItemId
                             ? `<div class="price-with-claim">
                                  <a href="https://bitjita.com/market/${row.isCargo ? 'cargo' : 'item'}/${row.epicItemId}?q=${encodeURIComponent(row.itemName.toLowerCase())}&hasOrders=true" target="_blank" class="item-link">${row.epic} hex</a>
-                                 ${row.epicClaim ? `<div class="claim-name">${row.epicClaim}</div>` : ''}
+                                 ${row.epicClaim ? `<div class="claim-name">${BitcraftUtils.escapeHtml(row.epicClaim)}</div>` : ''}
                                </div>`
                             : (row.epic !== null ? row.epic + ' hex' : 'N/A')}
                     </td>
@@ -1805,11 +1811,11 @@
                         ${row.legendary !== null && row.legendaryItemId
                             ? `<div class="price-with-claim">
                                  <a href="https://bitjita.com/market/${row.isCargo ? 'cargo' : 'item'}/${row.legendaryItemId}?q=${encodeURIComponent(row.itemName.toLowerCase())}&hasOrders=true" target="_blank" class="item-link">${row.legendary} hex</a>
-                                 ${row.legendaryClaim ? `<div class="claim-name">${row.legendaryClaim}</div>` : ''}
+                                 ${row.legendaryClaim ? `<div class="claim-name">${BitcraftUtils.escapeHtml(row.legendaryClaim)}</div>` : ''}
                                </div>`
                             : (row.legendary !== null ? row.legendary + ' hex' : 'N/A')}
                     </td>
-                    <td>${row.category}</td>
+                    <td>${BitcraftUtils.escapeHtml(row.category)}</td>
                 </tr>
             `).join('');
         }
@@ -2098,9 +2104,9 @@
                 document.getElementById('allRegions').checked = true;
             }
 
-            // Auto-trigger search if filters are present
+            // Auto-trigger search if filters are present (no delay needed - items already loaded)
             if (params.categories || params.tiers || params.rarities) {
-                setTimeout(() => handleFilterChange(), 500);
+                handleFilterChange();
             }
         }
 
@@ -2135,8 +2141,8 @@
             BitcraftUtils.setUrlParams(params, true);
         }
 
-        // Call restoreFromUrl after dropdowns are populated
-        setTimeout(restoreFromUrl, 500);
+        // Note: restoreFromUrl is now called directly from loadItems() after items are loaded
+        // This eliminates the race condition and 500ms delay
 
         // Add event listeners to update URL when filters change
         document.getElementById('categoryFilter').addEventListener('change', updateUrl);
@@ -2165,13 +2171,13 @@
 
             resultsBody.innerHTML = data.map(row => `
                 <tr>
-                    <td><a href="https://bitjita.com/market/${row.isCargo ? 'cargo' : 'item'}/${row.itemId}?q=${encodeURIComponent(row.itemName.toLowerCase())}&hasOrders=true" target="_blank" class="item-link">${row.isCargo ? '<span class="cargo-label">[Cargo]</span>' : ''}${row.itemName}</a></td>
+                    <td><a href="https://bitjita.com/market/${row.isCargo ? 'cargo' : 'item'}/${row.itemId}?q=${encodeURIComponent(row.itemName.toLowerCase())}&hasOrders=true" target="_blank" class="item-link">${row.isCargo ? '<span class="cargo-label">[Cargo]</span>' : ''}${BitcraftUtils.escapeHtml(row.itemName)}</a></td>
                     <td>${row.tier}</td>
                     <td class="${row.common !== null ? 'price-cell' : 'price-na'}">
                         ${row.common !== null && row.commonItemId
                             ? `<div class="price-with-claim">
                                  <a href="https://bitjita.com/market/${row.isCargo ? 'cargo' : 'item'}/${row.commonItemId}?q=${encodeURIComponent(row.itemName.toLowerCase())}&hasOrders=true" target="_blank" class="item-link">${BitcraftUtils.formatPrice(row.common)}</a>
-                                 ${row.commonClaim ? `<div class="claim-name">${row.commonClaim}</div>` : ''}
+                                 ${row.commonClaim ? `<div class="claim-name">${BitcraftUtils.escapeHtml(row.commonClaim)}</div>` : ''}
                                </div>`
                             : (row.common !== null ? BitcraftUtils.formatPrice(row.common) : 'N/A')}
                     </td>
@@ -2179,7 +2185,7 @@
                         ${row.uncommon !== null && row.uncommonItemId
                             ? `<div class="price-with-claim">
                                  <a href="https://bitjita.com/market/${row.isCargo ? 'cargo' : 'item'}/${row.uncommonItemId}?q=${encodeURIComponent(row.itemName.toLowerCase())}&hasOrders=true" target="_blank" class="item-link">${BitcraftUtils.formatPrice(row.uncommon)}</a>
-                                 ${row.uncommonClaim ? `<div class="claim-name">${row.uncommonClaim}</div>` : ''}
+                                 ${row.uncommonClaim ? `<div class="claim-name">${BitcraftUtils.escapeHtml(row.uncommonClaim)}</div>` : ''}
                                </div>`
                             : (row.uncommon !== null ? BitcraftUtils.formatPrice(row.uncommon) : 'N/A')}
                     </td>
@@ -2187,7 +2193,7 @@
                         ${row.rare !== null && row.rareItemId
                             ? `<div class="price-with-claim">
                                  <a href="https://bitjita.com/market/${row.isCargo ? 'cargo' : 'item'}/${row.rareItemId}?q=${encodeURIComponent(row.itemName.toLowerCase())}&hasOrders=true" target="_blank" class="item-link">${BitcraftUtils.formatPrice(row.rare)}</a>
-                                 ${row.rareClaim ? `<div class="claim-name">${row.rareClaim}</div>` : ''}
+                                 ${row.rareClaim ? `<div class="claim-name">${BitcraftUtils.escapeHtml(row.rareClaim)}</div>` : ''}
                                </div>`
                             : (row.rare !== null ? BitcraftUtils.formatPrice(row.rare) : 'N/A')}
                     </td>
@@ -2195,7 +2201,7 @@
                         ${row.epic !== null && row.epicItemId
                             ? `<div class="price-with-claim">
                                  <a href="https://bitjita.com/market/${row.isCargo ? 'cargo' : 'item'}/${row.epicItemId}?q=${encodeURIComponent(row.itemName.toLowerCase())}&hasOrders=true" target="_blank" class="item-link">${BitcraftUtils.formatPrice(row.epic)}</a>
-                                 ${row.epicClaim ? `<div class="claim-name">${row.epicClaim}</div>` : ''}
+                                 ${row.epicClaim ? `<div class="claim-name">${BitcraftUtils.escapeHtml(row.epicClaim)}</div>` : ''}
                                </div>`
                             : (row.epic !== null ? BitcraftUtils.formatPrice(row.epic) : 'N/A')}
                     </td>
@@ -2203,11 +2209,11 @@
                         ${row.legendary !== null && row.legendaryItemId
                             ? `<div class="price-with-claim">
                                  <a href="https://bitjita.com/market/${row.isCargo ? 'cargo' : 'item'}/${row.legendaryItemId}?q=${encodeURIComponent(row.itemName.toLowerCase())}&hasOrders=true" target="_blank" class="item-link">${BitcraftUtils.formatPrice(row.legendary)}</a>
-                                 ${row.legendaryClaim ? `<div class="claim-name">${row.legendaryClaim}</div>` : ''}
+                                 ${row.legendaryClaim ? `<div class="claim-name">${BitcraftUtils.escapeHtml(row.legendaryClaim)}</div>` : ''}
                                </div>`
                             : (row.legendary !== null ? BitcraftUtils.formatPrice(row.legendary) : 'N/A')}
                     </td>
-                    <td>${row.category}</td>
+                    <td>${BitcraftUtils.escapeHtml(row.category)}</td>
                 </tr>
             `).join('');
         };
