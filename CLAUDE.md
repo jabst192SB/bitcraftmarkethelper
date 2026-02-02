@@ -434,6 +434,39 @@ grouped[key] = {
 
 **Fix**: When modifying display logic, update both versions (search for `displayResults =` and `function displayResults`)
 
+### Bulk API ID Type Mismatch
+**Symptom**: Price data not found for items when using bulk API, even though API returns data
+
+**Cause**: Item IDs in `items.json` may be strings (e.g., `"6180012"`) while the bulk API response may key data by integers or vice versa. JavaScript object property lookup is type-sensitive for non-coerced comparisons.
+
+**Fix**: Always check both string and integer keys when looking up bulk API data:
+```javascript
+const priceData = bulkData.data.items[item.id] || bulkData.data.items[parseInt(item.id)];
+```
+
+### Cargo Items in Bulk API
+**Symptom**: Cargo items show no price data even when bulk API returns their data
+
+**Cause**: Cargo item prices are returned in `bulkData.data.cargo`, not `bulkData.data.items`. Code that only checks `items` will miss all cargo data.
+
+**Fix**: Check the correct data object based on item type:
+```javascript
+const priceData = item.itemType === 'cargo'
+    ? (bulkData.data.cargo?.[item.id] || bulkData.data.cargo?.[parseInt(item.id)])
+    : (bulkData.data.items?.[item.id] || bulkData.data.items?.[parseInt(item.id)]);
+```
+
+### HTML Escaping in Table Templates
+**Symptom**: Table grid misalignment, content appearing in wrong columns, or broken HTML
+
+**Cause**: Dynamic content (item names, claim names, categories) containing special HTML characters (`<`, `>`, `&`, quotes) can corrupt the table structure when inserted via template literals.
+
+**Fix**: Always use `BitcraftUtils.escapeHtml()` for user-generated or API-sourced text in HTML templates:
+```javascript
+<td>${BitcraftUtils.escapeHtml(row.itemName)}</td>
+${row.commonClaim ? `<div class="claim-name">${BitcraftUtils.escapeHtml(row.commonClaim)}</div>` : ''}
+```
+
 ## Testing Changes
 
 ### Local Testing Workflow
