@@ -949,9 +949,9 @@
               updateStatus('SYNCHRONIZING', 'loading');
 
               try {
-                  // Fetch market state from Supabase
-                  const marketStateResponse = await fetch(
-                      `${SUPABASE_URL}/rest/v1/market_state?select=*&order=last_updated.desc`,
+                  // Fetch market items from Supabase
+                  const marketItemsResponse = await fetch(
+                      `${SUPABASE_URL}/rest/v1/market_items?select=*&order=last_updated.desc`,
                       {
                           headers: {
                               'apikey': SUPABASE_ANON_KEY,
@@ -960,22 +960,20 @@
                       }
                   );
 
-                  if (!marketStateResponse.ok) throw new Error('Failed to fetch market state');
+                  if (!marketItemsResponse.ok) throw new Error('Failed to fetch market items');
 
-                  const marketStateRows = await marketStateResponse.json();
+                  const marketItemsRows = await marketItemsResponse.json();
 
                   // Convert Supabase rows to marketData object format
                   marketData = {};
-                  marketStateRows.forEach(row => {
+                  marketItemsRows.forEach(row => {
                       marketData[row.item_id] = {
                           itemId: row.item_id,
                           itemName: row.item_name,
-                          highestBuyPrice: row.highest_buy_price,
-                          lowestSellPrice: row.lowest_sell_price,
-                          totalBuyQuantity: row.total_buy_quantity,
-                          totalSellQuantity: row.total_sell_quantity,
-                          sellOrderCount: row.sell_order_count,
-                          buyOrderCount: row.buy_order_count,
+                          itemType: row.item_type,
+                          sellOrders: row.sell_orders,
+                          buyOrders: row.buy_orders,
+                          totalOrders: row.total_orders,
                           lastUpdated: row.last_updated
                       };
                   });
@@ -998,25 +996,21 @@
                   // Convert Supabase rows to orderDetails object format
                   orderDetails = {};
                   orderDetailsRows.forEach(row => {
-                      if (!orderDetails[row.item_id]) {
-                          orderDetails[row.item_id] = {
-                              itemId: row.item_id,
-                              itemName: row.item_name,
-                              buyOrders: [],
-                              sellOrders: []
-                          };
-                      }
+                      // Get item name from marketData
+                      const itemName = marketData[row.item_id]?.itemName || 'Unknown';
 
-                      const orderData = row.order_data;
-                      if (orderData) {
-                          orderDetails[row.item_id].buyOrders = orderData.buyOrders || [];
-                          orderDetails[row.item_id].sellOrders = orderData.sellOrders || [];
-                      }
+                      orderDetails[row.item_id] = {
+                          itemId: row.item_id,
+                          itemName: itemName,
+                          buyOrders: row.buy_orders || [],
+                          sellOrders: row.sell_orders || [],
+                          stats: row.stats || {}
+                      };
                   });
 
                   // Load changes from Supabase
                   const changesResponse = await fetch(
-                      `${SUPABASE_URL}/rest/v1/change_history?select=*&order=timestamp.desc&limit=100`,
+                      `${SUPABASE_URL}/rest/v1/market_changes?select=*&order=timestamp.desc&limit=100`,
                       {
                           headers: {
                               'apikey': SUPABASE_ANON_KEY,
@@ -1028,14 +1022,16 @@
                   if (changesResponse.ok) {
                       const changesRows = await changesResponse.json();
                       // Convert Supabase rows to changes array format
-                      changes = changesRows.map(row => ({
-                          itemId: row.item_id,
-                          itemName: row.item_name,
-                          changeType: row.change_type,
-                          oldValue: row.old_value,
-                          newValue: row.new_value,
-                          timestamp: row.timestamp
-                      }));
+                      // The changes field is JSONB containing array of change objects
+                      changes = [];
+                      changesRows.forEach(row => {
+                          if (row.changes && Array.isArray(row.changes)) {
+                              changes.push(...row.changes.map(change => ({
+                                  ...change,
+                                  timestamp: row.timestamp
+                              })));
+                          }
+                      });
                   }
 
                   updateStats();
@@ -1264,49 +1260,9 @@
           }
 
           async function resetMonitor() {
-              if (!confirm('Are you sure you want to reset all market data? This will clear the database.')) {
-                  return;
-              }
-
-              showLoading(true);
-              try {
-                  // Delete from all three Supabase tables
-                  const tables = ['market_state', 'order_details', 'change_history'];
-
-                  for (const table of tables) {
-                      const response = await fetch(
-                          `${SUPABASE_URL}/rest/v1/${table}?id=gte.0`,
-                          {
-                              method: 'DELETE',
-                              headers: {
-                                  'apikey': SUPABASE_ANON_KEY,
-                                  'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-                                  'Prefer': 'return=minimal'
-                              }
-                          }
-                      );
-
-                      if (!response.ok) {
-                          throw new Error(`Failed to delete from ${table}`);
-                      }
-                  }
-
-                  // Clear local state
-                  marketData = {};
-                  orderDetails = {};
-                  changes = [];
-                  updateStats();
-                  renderMarketCards();
-                  updateTicker();
-                  updateStatus('ONLINE', 'active');
-                  alert('Market data reset successfully');
-              } catch (error) {
-                  console.error('Error resetting monitor:', error);
-                  updateStatus('ERROR', 'error');
-                  alert('Error resetting monitor: ' + error.message);
-              } finally {
-                  showLoading(false);
-              }
+              // Note: Reset functionality requires service_role key, not anon key
+              // This is a read-only demo. For full functionality, use local-monitor.js
+              alert('Reset functionality requires service role access.\n\nTo reset the database, run:\nnode local-monitor.js reset');
           }
 
           function updateStatus(text, status) {
