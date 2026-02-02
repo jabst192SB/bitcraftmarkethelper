@@ -1,3 +1,9 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+---
+
 # Bitcraft Market Helper
 
 A lightweight web application for browsing Bitcraft market data with real-time API integration to bitjita.com.
@@ -10,8 +16,8 @@ A lightweight web application for browsing Bitcraft market data with real-time A
 - **Fetch API** - HTTP requests to backend APIs
 
 ### Backend/Infrastructure
-- **Cloudflare Workers** - Serverless CORS proxy and market monitoring
-- **Durable Objects** - Persistent state for market order change tracking
+- **Cloudflare Workers** - Serverless CORS proxy (free tier)
+- **Supabase** - PostgreSQL database for market monitoring (free tier)
 - **GitHub Pages** - Production hosting
 - **Python 3** - Local development server with CORS support
 
@@ -27,18 +33,23 @@ A lightweight web application for browsing Bitcraft market data with real-time A
 ```
 ├── index.html              # Main market search page
 ├── gear-finder.html        # Gear finder/analyzer
-├── market-monitor.html     # Market order monitor (Durable Objects)
+├── market-monitor.html     # Market order monitor (Supabase)
+├── market-monitor-v2.html  # Market order monitor v2 (Supabase)
+├── dashboard.html          # Dashboard overview
 ├── help.html               # Help & FAQ
-├── cloudflare-worker.js    # Cloudflare Workers proxy + monitor logic
-├── local-monitor.js        # Local market monitor (no restrictions)
+├── shared-utils.js         # Shared JavaScript utilities (BitcraftUtils)
+├── savedSearches.js        # localStorage management module
+├── config-browser.js       # Centralized browser config (BitcraftConfig)
+├── cloudflare-worker.js    # Cloudflare Workers CORS proxy (simple)
+├── supabase-client.js      # Supabase REST API client
+├── local-monitor.js        # Local market monitor (syncs to Supabase)
 ├── fetch-all-items.js      # Automated complete cache builder
-├── sync-to-worker.js       # Upload local data to Cloudflare Worker
 ├── check-progress.js       # Check local cache progress
 ├── proxy-server.py         # Local Python CORS proxy
-├── savedSearches.js        # localStorage management module
 ├── wrangler.toml           # Cloudflare Workers config
 ├── start-server.bat        # Windows local startup script
 ├── items.json              # Item database (2.5MB)
+├── resource_desc.json      # Resource descriptions (39K lines)
 └── *.md                    # Documentation files
 ```
 
@@ -71,7 +82,6 @@ node local-monitor.js help               # Show all options
 
 # HELPER SCRIPTS:
 node fetch-all-items.js                  # Automated complete cache builder
-node sync-to-worker.js                   # Upload local data to worker
 node check-progress.js                   # Check local cache progress
 ```
 
@@ -109,9 +119,8 @@ const API_BASE_URL = 'https://bitcraft-market-proxy.jbaird-cb6.workers.dev';
 
 ### Wrangler Config (wrangler.toml)
 - Worker name: `bitcraft-market-proxy`
-- Durable Objects class: `MarketMonitor`
-- Cron schedule: Every 5 minutes (`*/5 * * * *`)
-- Requires paid Cloudflare plan ($5/month) for Durable Objects
+- Free tier: 100,000 requests/day
+- No paid plan required (CORS proxy only)
 
 ## Code Conventions
 
@@ -133,6 +142,69 @@ const API_BASE_URL = 'https://bitcraft-market-proxy.jbaird-cb6.workers.dev';
 - All CSS and JS embedded in HTML files (no build step)
 - Semantic HTML5 structure
 - Mobile-first responsive design
+
+## Architecture Overview
+
+### Frontend Pages (Embedded JS/CSS)
+All HTML files contain embedded JavaScript and CSS with no build step. Each page follows a consistent pattern:
+
+1. **Configuration** - `API_BASE_URL` constant at top (Cloudflare Worker URL or empty for local)
+2. **Shared Utilities** - `BitcraftUtils` module provides common functions (toast, clipboard, URL params, price formatting)
+3. **Data Loading** - Fetch `items.json` on page load
+4. **UI State Management** - Event listeners update DOM directly (no frameworks)
+5. **API Integration** - Fetch data from bitjita.com via Cloudflare Worker proxy
+
+### Shared Utilities Module (`shared-utils.js`)
+The `BitcraftUtils` object provides cross-page functionality:
+- **Toast notifications**: `showToast(message, type, duration)`
+- **Clipboard**: `copyToClipboard(text, showNotification)`
+- **URL parameters**: `getUrlParams()`, `setUrlParams(params, replace)`
+- **Price formatting**: `formatPrice(price)` - converts to "1,234 hex" format
+- **Debouncing**: `debounce(func, delay)`
+- **Items cache**: Browser localStorage caching for items.json
+
+Configuration is centralized in `config-browser.js` and accessed via `window.BitcraftConfig`.
+
+### Critical Data Flow Pattern (gear-finder.html)
+
+The gear finder has **two distinct data processing paths** that must return identical data structures:
+
+#### Path 1: Bulk API (No Regional Filter)
+```javascript
+// Uses bulk endpoint (/api/market/prices/bulk) - fast, no claim names
+gridData = processBulkDataToGrid(items, mergedBulkData);
+```
+
+#### Path 2: Individual API (Regional Filter Enabled)
+```javascript
+// Uses individual endpoints (/api/market/item/{id}) - slow, has claim names
+gridData = processResultsToGrid(results, allRegionsChecked, targetRegionId);
+```
+
+**CRITICAL**: Both functions must initialize the same properties in their grouped data objects:
+```javascript
+{
+  itemName, itemId, tier, category, isCargo,
+  common, commonItemId, commonClaim,        // All 3 required
+  uncommon, uncommonItemId, uncommonClaim,  // All 3 required
+  rare, rareItemId, rareClaim,              // All 3 required
+  epic, epicItemId, epicClaim,              // All 3 required
+  legendary, legendaryItemId, legendaryClaim // All 3 required
+}
+```
+
+**Common Bug**: Missing `*Claim` property initialization in `processBulkDataToGrid` causes undefined property access in `displayResults`, leading to table structure corruption and grid misalignment.
+
+### Display Results Override Pattern
+Several pages override the original `displayResults` function to add enhanced formatting:
+```javascript
+const originalDisplayResults = displayResults;
+displayResults = function(data) {
+    // Enhanced version with BitcraftUtils.formatPrice() and claim names
+};
+```
+
+When modifying `displayResults`, ensure both the original and enhanced versions stay in sync.
 
 ## Data Structures
 
@@ -193,8 +265,8 @@ const API_BASE_URL = 'https://bitcraft-market-proxy.jbaird-cb6.workers.dev';
 
 ### API Constraints
 - Bulk endpoint: Max 100 items per request (batched automatically)
-- Cloudflare free tier: 100,000 requests/day
-- Durable Objects require paid plan
+- Cloudflare free tier: 100,000 requests/day (CORS proxy only)
+- Supabase free tier: 500MB database, 2GB bandwidth/month
 
 ### localStorage
 - Max 20 saved searches
@@ -211,21 +283,28 @@ const API_BASE_URL = 'https://bitcraft-market-proxy.jbaird-cb6.workers.dev';
 1. **index.html** - Market Search
    - Typeahead search with tier filtering
    - Buy/sell order display with claim names
-   - Saved searches with management modal
+   - Saved searches with management modal (savedSearches.js)
    - Multi-item table search
+   - Uses individual item API endpoints
 
 2. **gear-finder.html** - Gear Finder
    - Advanced filtering (tier, category, rarity)
-   - Bulk price lookup
-   - Table results display
+   - Two data paths: bulk API (fast) vs individual API (regional filter)
+   - Table results display with sortable columns
+   - Export to CSV functionality
+   - Column filtering modal
 
 3. **market-monitor.html** - Market Monitor
-   - Real-time change detection (5-min polling)
+   - Real-time change detection via Supabase
    - Order count delta tracking
    - Change history (up to 1000 entries)
-   - Durable Objects state persistence
+   - Supabase PostgreSQL backend
 
-4. **help.html** - Help & FAQ
+4. **dashboard.html** - Dashboard
+   - Overview of market statistics
+   - Uses BitcraftUtils for shared functionality
+
+5. **help.html** - Help & FAQ
    - Feature documentation
    - Troubleshooting guides
 
@@ -263,45 +342,47 @@ The local monitor (`local-monitor.js`) provides unlimited market data fetching w
 
 #### 3. Manual Modes
 - **update-bulk**: Bulk API check + fetch changed items (no auto-sync)
-- **sync**: Manual upload to worker
+- **sync**: Manual upload to Supabase
 - **debug**: Show orders for specific claim
 - **state/changes**: View local cache status
 
 ### Sync Process
-The local monitor syncs data to Cloudflare Worker via:
-```
-POST https://bitcraft-market-proxy.jbaird-cb6.workers.dev/api/monitor/update
-Body: { marketData, orderDetails }
-```
+The local monitor syncs data directly to Supabase via REST API:
+- Uploads market state to `market_state` table
+- Uploads order details to `order_details` table
+- Uploads changes to `change_history` table
 
-This allows the website to display complete market data immediately, bypassing the Worker's 40 items/run limitation.
+This allows the website to display complete market data immediately.
 
-### Workflow Comparison
+### Workflow
 
-| Aspect | Cloudflare Worker | Local Monitor |
-|--------|-------------------|---------------|
-| Speed | 40 items per 5 min | 2964 items in 15-20 min |
-| Limits | 50 subrequests/run | None |
-| Initial cache | ~6 hours | ~20 minutes |
-| Ongoing updates | Incremental (40/run) | Bulk check + changed items |
-| Use case | Production maintenance | Initial setup + dev |
+The local monitor is now the primary data sync mechanism:
+- **Initial setup**: `node local-monitor.js setup` (~15-20 minutes)
+- **Continuous monitoring**: `node local-monitor.js monitor` (runs indefinitely, syncs to Supabase)
+- **Manual sync**: `node local-monitor.js sync` (upload current state to Supabase)
 
-**Best practice**: Use local monitor for initial setup, then let both systems run (Worker for automatic updates, local monitor for immediate sync when needed).
+The Cloudflare Worker only provides CORS proxy functionality - it does not store or monitor market data.
 
-## Cloudflare Worker Architecture
+## Architecture
 
+### Cloudflare Worker
 The worker (`cloudflare-worker.js`) provides:
 - **CORS proxy** - Routes requests to bitjita.com with proper headers
-- **MarketMonitor Durable Object** - Persistent market state tracking
-- **Cron trigger** - Polls market data every 5 minutes
-- **Change detection** - Compares snapshots, tracks deltas
+- Free tier: 100,000 requests/day
+- No server-side state or monitoring (migrated to Supabase)
 
-### Monitor Endpoints
+### Supabase Backend
+Market monitoring is now handled by Supabase:
+- **PostgreSQL database** - Stores market state, order details, and change history
+- **REST API** - Frontend queries data directly from Supabase
+- **local-monitor.js** - Syncs market data from bitjita.com to Supabase
+- Free tier: 500MB database, 2GB bandwidth/month
+
+### Database Tables
 ```
-GET  /api/monitor/state           # Current market state
-GET  /api/monitor/changes?limit=N # Change history
-POST /api/monitor/update          # Trigger manual update (also used by local monitor)
-POST /api/monitor/reset           # Reset all state
+market_state     - Current market prices and statistics
+order_details    - Buy/sell orders with claim names
+change_history   - Market change events
 ```
 
 ## Development Workflow
@@ -311,6 +392,76 @@ POST /api/monitor/reset           # Reset all state
 - Test locally with `proxy-server.py` before deploying
 - Deploy worker changes with `wrangler deploy`
 - Push to main for GitHub Pages auto-deploy
+
+## Common Pitfalls
+
+### Grid Misalignment in Tables
+**Symptom**: Table columns shift, content appears in wrong columns (e.g., "Leather Clothing" in LEGENDARY column instead of CATEGORY)
+
+**Cause**: Data processing functions return objects with inconsistent properties. The `displayResults` function expects all `*Claim` properties to exist (even if null).
+
+**Fix**: Ensure both `processBulkDataToGrid` and `processResultsToGrid` initialize identical property sets:
+```javascript
+grouped[key] = {
+    // ... other properties
+    commonClaim: null,      // REQUIRED - even if bulk API doesn't provide it
+    uncommonClaim: null,
+    rareClaim: null,
+    epicClaim: null,
+    legendaryClaim: null
+};
+```
+
+### CORS Errors in Local Development
+**Symptom**: API requests fail with CORS errors when testing locally
+
+**Cause**: Not using the proxy server, or `API_BASE_URL` is set to worker URL instead of empty string
+
+**Fix**:
+1. Use `python proxy-server.py` (not a basic HTTP server)
+2. Set `API_BASE_URL = ''` in HTML files for local development
+3. Verify proxy server is running on port 8000
+
+### Cached Data Issues
+**Symptom**: Changes not appearing after editing HTML files
+
+**Fix**: Hard refresh browser (Ctrl+Shift+R or Ctrl+F5) to bypass cache
+
+### Display Function Overrides
+**Symptom**: Changes to `displayResults` don't take effect, or inconsistent behavior
+
+**Cause**: Multiple HTML files have two versions of `displayResults` - original and enhanced override
+
+**Fix**: When modifying display logic, update both versions (search for `displayResults =` and `function displayResults`)
+
+## Testing Changes
+
+### Local Testing Workflow
+1. Set `API_BASE_URL = ''` in HTML file being tested
+2. Start proxy server: `python proxy-server.py`
+3. Open http://localhost:8000/[page].html in browser
+4. Test functionality with various filters/inputs
+5. Check browser console for errors
+6. Hard refresh (Ctrl+Shift+R) after each code change
+
+### Testing Gear Finder Grid
+To verify grid alignment is correct:
+1. Open gear-finder.html
+2. Select a category with multiple rarities (e.g., "Leather Clothing")
+3. Select a tier (e.g., Tier 6)
+4. Click Search
+5. Verify:
+   - Category names appear in rightmost CATEGORY column
+   - Each price cell contains only one price value
+   - No content overflow into adjacent columns
+   - All 8 columns properly aligned
+
+### Before Deploying
+1. Set `API_BASE_URL = 'https://bitcraft-market-proxy.jbaird-cb6.workers.dev'` in all HTML files
+2. Test locally one more time with worker URL
+3. Commit and push to main
+4. Wait ~1 minute for GitHub Pages deployment
+5. Test live site to verify changes
 
 ## Quick Start Guides
 
@@ -368,7 +519,7 @@ See [LOCAL-MONITOR-QUICKREF.md](LOCAL-MONITOR-QUICKREF.md) for all commands.
 - [QUICK-DEBUG-GUIDE.md](QUICK-DEBUG-GUIDE.md) - Debugging orders
 
 ### Core Files
-- `local-monitor.js` - Main local monitor (2 automated modes + manual tools)
+- `local-monitor.js` - Main local monitor (2 automated modes + manual tools, syncs to Supabase)
+- `supabase-client.js` - Supabase REST API client
 - `fetch-all-items.js` - Standalone complete cache builder
-- `sync-to-worker.js` - Standalone sync utility
 - `check-progress.js` - Cache progress checker

@@ -13,22 +13,10 @@ compatibility_date = "2024-01-01"
 # Your worker is available at:
 # https://bitcraft-market-proxy.jbaird-cb6.workers.dev
 #
-# API_BASE_URL has been configured in index.html, gear-finder.html, and market-monitor.html
+# This worker now only provides CORS proxy functionality.
+# Market monitoring is handled by Supabase (via local-monitor.js).
 
-# Durable Objects Configuration
-# Used for market monitoring state management
-[[durable_objects.bindings]]
-name = "MARKET_MONITOR"
-class_name = "MarketMonitor"
-
-# Durable Objects Migration
-# Required for Durable Objects to work properly
+# Migration to remove Durable Objects
 [[migrations]]
-tag = "v1"
-new_classes = ["MarketMonitor"]
-
-# Scheduled Events (Cron Triggers)
-# Disabled - using external cron-job.org service instead
-# Free tier has CPU limits that cause failures
-# [triggers]
-# crons = ["*/5 * * * *"]
+tag = "v2"
+deleted_classes = ["MarketMonitor"]

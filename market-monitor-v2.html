@@ -880,6 +880,8 @@
       <script>
           // Configuration
           const API_BASE_URL = 'https://bitcraft-market-proxy.jbaird-cb6.workers.dev';
+          const SUPABASE_URL = 'https://oruszpmuvraxkzwlayex.supabase.co';
+          const SUPABASE_ANON_KEY = 'sb_publishable__WY2P7UF9lb_HQjYLyUa_A_sT8JyW-Y';
           const REFRESH_INTERVAL = 30000; // 30 seconds
           const SOLVENAR_REGION_ID = 4;
 
@@ -947,17 +949,93 @@
               updateStatus('SYNCHRONIZING', 'loading');
 
               try {
-                  const response = await fetch(`${API_BASE_URL}/api/monitor/state`);
-                  if (!response.ok) throw new Error('Failed to fetch market state');
+                  // Fetch market state from Supabase
+                  const marketStateResponse = await fetch(
+                      `${SUPABASE_URL}/rest/v1/market_state?select=*&order=last_updated.desc`,
+                      {
+                          headers: {
+                              'apikey': SUPABASE_ANON_KEY,
+                              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                          }
+                      }
+                  );
 
-                  const data = await response.json();
-                  marketData = data.marketData || {};
-                  orderDetails = data.orderDetails || {};
+                  if (!marketStateResponse.ok) throw new Error('Failed to fetch market state');
 
-                  // Load changes
-                  const changesResponse = await fetch(`${API_BASE_URL}/api/monitor/changes?limit=100`);
+                  const marketStateRows = await marketStateResponse.json();
+
+                  // Convert Supabase rows to marketData object format
+                  marketData = {};
+                  marketStateRows.forEach(row => {
+                      marketData[row.item_id] = {
+                          itemId: row.item_id,
+                          itemName: row.item_name,
+                          highestBuyPrice: row.highest_buy_price,
+                          lowestSellPrice: row.lowest_sell_price,
+                          totalBuyQuantity: row.total_buy_quantity,
+                          totalSellQuantity: row.total_sell_quantity,
+                          sellOrderCount: row.sell_order_count,
+                          buyOrderCount: row.buy_order_count,
+                          lastUpdated: row.last_updated
+                      };
+                  });
+
+                  // Fetch order details from Supabase
+                  const orderDetailsResponse = await fetch(
+                      `${SUPABASE_URL}/rest/v1/order_details?select=*`,
+                      {
+                          headers: {
+                              'apikey': SUPABASE_ANON_KEY,
+                              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                          }
+                      }
+                  );
+
+                  if (!orderDetailsResponse.ok) throw new Error('Failed to fetch order details');
+
+                  const orderDetailsRows = await orderDetailsResponse.json();
+
+                  // Convert Supabase rows to orderDetails object format
+                  orderDetails = {};
+                  orderDetailsRows.forEach(row => {
+                      if (!orderDetails[row.item_id]) {
+                          orderDetails[row.item_id] = {
+                              itemId: row.item_id,
+                              itemName: row.item_name,
+                              buyOrders: [],
+                              sellOrders: []
+                          };
+                      }
+
+                      const orderData = row.order_data;
+                      if (orderData) {
+                          orderDetails[row.item_id].buyOrders = orderData.buyOrders || [];
+                          orderDetails[row.item_id].sellOrders = orderData.sellOrders || [];
+                      }
+                  });
+
+                  // Load changes from Supabase
+                  const changesResponse = await fetch(
+                      `${SUPABASE_URL}/rest/v1/change_history?select=*&order=timestamp.desc&limit=100`,
+                      {
+                          headers: {
+                              'apikey': SUPABASE_ANON_KEY,
+                              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                          }
+                      }
+                  );
+
                   if (changesResponse.ok) {
-                      changes = await changesResponse.json();
+                      const changesRows = await changesResponse.json();
+                      // Convert Supabase rows to changes array format
+                      changes = changesRows.map(row => ({
+                          itemId: row.item_id,
+                          itemName: row.item_name,
+                          changeType: row.change_type,
+                          oldValue: row.old_value,
+                          newValue: row.new_value,
+                          timestamp: row.timestamp
+                      }));
                   }
 
                   updateStats();
@@ -1186,24 +1264,46 @@
           }
 
           async function resetMonitor() {
+              if (!confirm('Are you sure you want to reset all market data? This will clear the database.')) {
+                  return;
+              }
+
               showLoading(true);
               try {
-                  const response = await fetch(`${API_BASE_URL}/api/monitor/reset`, {
-                      method: 'POST'
-                  });
+                  // Delete from all three Supabase tables
+                  const tables = ['market_state', 'order_details', 'change_history'];
 
-                  if (response.ok) {
-                      marketData = {};
-                      orderDetails = {};
-                      changes = [];
-                      updateStats();
-                      renderMarketCards();
-                      updateTicker();
-                      updateStatus('ONLINE', 'active');
+                  for (const table of tables) {
+                      const response = await fetch(
+                          `${SUPABASE_URL}/rest/v1/${table}?id=gte.0`,
+                          {
+                              method: 'DELETE',
+                              headers: {
+                                  'apikey': SUPABASE_ANON_KEY,
+                                  'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                                  'Prefer': 'return=minimal'
+                              }
+                          }
+                      );
+
+                      if (!response.ok) {
+                          throw new Error(`Failed to delete from ${table}`);
+                      }
                   }
+
+                  // Clear local state
+                  marketData = {};
+                  orderDetails = {};
+                  changes = [];
+                  updateStats();
+                  renderMarketCards();
+                  updateTicker();
+                  updateStatus('ONLINE', 'active');
+                  alert('Market data reset successfully');
               } catch (error) {
                   console.error('Error resetting monitor:', error);
                   updateStatus('ERROR', 'error');
+                  alert('Error resetting monitor: ' + error.message);
               } finally {
                   showLoading(false);
               }

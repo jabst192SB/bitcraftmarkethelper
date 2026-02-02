@@ -1,0 +1,1184 @@
+/**
+ * Cloudflare Worker - CORS Proxy + Market Monitor with Durable Objects
+ *
+ * This worker:
+ * 1. Proxies requests to bitjita.com with CORS headers
+ * 2. Monitors market orders every 5 minutes via cron
+ * 3. Tracks changes in buy/sell orders
+ * 4. Provides real-time updates to frontend clients
+ */
+
+// ============================================
+// CONFIGURATION
+// ============================================
+const WORKER_CONFIG = {
+  // External API
+  TARGET_API: 'https://bitjita.com',
+
+  // Region Settings
+  MONITOR_REGION_ID: 4, // Solvenar
+
+  // Worker Limits (Cloudflare constraints)
+  MAX_SUBREQUESTS_PER_RUN: 50, // Cloudflare limit
+  MAX_ITEMS_PER_RUN: 40, // Safe buffer under subrequest limit
+  MAX_STORED_ITEMS: 500, // Prevent Durable Object bloat
+
+  // Chunking (SQLite row size limits)
+  ITEMS_PER_CHUNK: 500,
+  CHANGES_PER_CHUNK: 100,
+
+  // Rate Limiting
+  BATCH_SIZE: 40,
+  DELAY_BETWEEN_BATCHES_MS: 100,
+};
+
+// Backward compatibility - keep these for existing code
+const TARGET_API = WORKER_CONFIG.TARGET_API;
+const MONITOR_REGION_ID = WORKER_CONFIG.MONITOR_REGION_ID;
+
+/**
+ * Durable Object: MarketMonitor
+ * Stores market state and tracks changes
+ */
+export class MarketMonitor {
+  constructor(state, env) {
+    this.state = state;
+    this.env = env;
+  }
+
+  /**
+   * Handle requests to the Durable Object
+   */
+  async fetch(request) {
+    const url = new URL(request.url);
+    const path = url.pathname;
+
+    if (path === '/api/monitor/state') {
+      return this.getState();
+    } else if (path === '/api/monitor/changes') {
+      const limit = parseInt(url.searchParams.get('limit')) || 50;
+      return this.getChanges(limit);
+    } else if (path === '/api/monitor/update') {
+      const data = await request.json();
+      return this.updateState(data.marketData, data.orderDetails || {});
+    } else if (path === '/api/monitor/reset') {
+      return this.resetState();
+    }
+
+    return new Response('Not found', { status: 404 });
+  }
+
+  /**
+   * Get current market state
+   */
+  async getState() {
+    const lastUpdate = await this.state.storage.get('lastUpdate');
+    const changeCount = await this.state.storage.get('changeCount') || 0;
+
+    // Reconstruct currentState from chunks
+    const currentState = await this.reconstructCurrentState();
+
+    // Reconstruct orderDetails from individual item entries
+    const orderDetails = await this.reconstructOrderDetails();
+
+    return new Response(JSON.stringify({
+      currentState: currentState,
+      orderDetails: orderDetails,
+      lastUpdate: lastUpdate || null,
+      changeCount: changeCount,
+      timestamp: Date.now()
+    }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  /**
+   * Reconstruct currentState from chunked storage
+   */
+  async reconstructCurrentState() {
+    const meta = await this.state.storage.get('currentStateMeta');
+    if (!meta) {
+      // Try old storage format for backward compatibility
+      const oldState = await this.state.storage.get('currentState');
+      return oldState || null;
+    }
+
+    // Get all item chunks
+    const itemChunks = await this.state.storage.list({ prefix: 'items_chunk_' });
+    const items = [];
+
+    // Sort chunks by index
+    const sortedChunks = Array.from(itemChunks.entries()).sort((a, b) => {
+      const aIndex = parseInt(a[0].substring(12)); // Remove 'items_chunk_' prefix
+      const bIndex = parseInt(b[0].substring(12));
+      return aIndex - bIndex;
+    });
+
+    // Reconstruct items array
+    for (const [, chunk] of sortedChunks) {
+      items.push(...chunk);
+    }
+
+    return {
+      items: items,
+      fetchedAt: meta.fetchedAt
+    };
+  }
+
+  /**
+   * Reconstruct orderDetails from individual item storage entries
+   */
+  async reconstructOrderDetails() {
+    const orderDetails = {};
+
+    // Get all keys that start with 'order_'
+    const allKeys = await this.state.storage.list({ prefix: 'order_' });
+
+    for (const [key, value] of allKeys) {
+      // Extract item ID from key (format: 'order_<itemId>')
+      const itemId = key.substring(6); // Remove 'order_' prefix
+      orderDetails[itemId] = value;
+    }
+
+    return orderDetails;
+  }
+
+  /**
+   * Get recent changes
+   */
+  async getChanges(limit = 50) {
+    const changes = await this.reconstructChanges();
+
+    return new Response(JSON.stringify({
+      changes: changes.slice(-limit),
+      total: changes.length,
+      timestamp: Date.now()
+    }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  /**
+   * Store changes array in chunks to avoid SQLite size limits
+   */
+  async storeChangesChunked(changes) {
+    const CHANGES_PER_CHUNK = 100; // Store 100 change entries per chunk
+    const numChunks = Math.ceil(changes.length / CHANGES_PER_CHUNK);
+
+    // Clear old change chunks
+    const oldChangeChunks = await this.state.storage.list({ prefix: 'changes_chunk_' });
+    for (const [key] of oldChangeChunks) {
+      await this.state.storage.delete(key);
+    }
+
+    // Store new chunks
+    for (let i = 0; i < numChunks; i++) {
+      const chunk = changes.slice(i * CHANGES_PER_CHUNK, (i + 1) * CHANGES_PER_CHUNK);
+      await this.state.storage.put(`changes_chunk_${i}`, chunk);
+    }
+
+    // Store metadata
+    await this.state.storage.put('changesMeta', {
+      totalEntries: changes.length,
+      numChunks: numChunks
+    });
+  }
+
+  /**
+   * Reconstruct changes array from chunks
+   */
+  async reconstructChanges() {
+    const meta = await this.state.storage.get('changesMeta');
+    if (!meta) {
+      // Try old storage format for backward compatibility
+      const oldChanges = await this.state.storage.get('changes');
+      if (oldChanges) {
+        // Migrate to new format
+        await this.storeChangesChunked(oldChanges);
+        return oldChanges;
+      }
+      return [];
+    }
+
+    // Get all change chunks
+    const changeChunks = await this.state.storage.list({ prefix: 'changes_chunk_' });
+    const changes = [];
+
+    // Sort chunks by index
+    const sortedChunks = Array.from(changeChunks.entries()).sort((a, b) => {
+      const aIndex = parseInt(a[0].substring(14)); // Remove 'changes_chunk_' prefix
+      const bIndex = parseInt(b[0].substring(14));
+      return aIndex - bIndex;
+    });
+
+    // Reconstruct changes array
+    for (const [, chunk] of sortedChunks) {
+      changes.push(...chunk);
+    }
+
+    return changes;
+  }
+
+  /**
+   * Update state with new market data and detect changes
+   *
+   * This is the core monitoring function that:
+   * 1. Reconstructs previous state from chunked storage
+   * 2. Detects changes between previous and current state
+   * 3. Updates stored state with chunking (500 items per chunk)
+   * 4. Stores change history with chunking (100 changes per chunk)
+   * 5. Stores individual order details (up to 120KB each)
+   * 6. Prunes old data to prevent storage bloat
+   *
+   * @param {Object} newData - Market data from bitjita API
+   * @param {Array} newData.items - Array of market items with order counts
+   * @param {Object} [orderDetails={}] - Optional detailed orders keyed by item ID
+   * @returns {Promise<void>}
+   *
+   * @example
+   * await updateState({ items: [...] }, { 123: { sellOrders: [...], buyOrders: [...] } });
+   */
+  async updateState(newData, orderDetails = {}) {
+    const previousState = await this.reconstructCurrentState();
+    const previousOrderDetails = await this.reconstructOrderDetails();
+    const changes = await this.reconstructChanges();
+    let changeCount = await this.state.storage.get('changeCount') || 0;
+
+    // Detect changes only if we have new market data
+    const detectedChanges = newData ? this.detectChanges(previousState, newData) : [];
+
+    if (detectedChanges.length > 0) {
+      // Attach order details and diff individual orders
+      const changesWithOrders = detectedChanges.map(change => {
+        const currentDetails = orderDetails[change.itemId];
+        const prevDetails = previousOrderDetails[change.itemId];
+
+        // Build base change object with MINIMAL data (don't store full orders in changes array)
+        const enhancedChange = { ...change };
+
+        if (currentDetails) {
+          // Diff individual orders to find added/removed
+          const orderDiff = this.diffOrders(prevDetails, currentDetails);
+
+          // Store only added/removed orders, not all orders
+          enhancedChange.addedOrders = orderDiff.added;
+          enhancedChange.removedOrders = orderDiff.removed;
+          enhancedChange.hasDetailedOrders = true;
+          // Store minimal stats only
+          enhancedChange.stats = currentDetails.stats || {};
+        } else if (prevDetails) {
+          // We have previous details but not current - minimal fallback
+          enhancedChange.addedOrders = { sellOrders: [], buyOrders: [] };
+          enhancedChange.removedOrders = { sellOrders: [], buyOrders: [] };
+          enhancedChange.hasDetailedOrders = false;
+          enhancedChange.fallbackToPrevious = true;
+        } else {
+          // No details available at all
+          enhancedChange.hasDetailedOrders = false;
+        }
+
+        return enhancedChange;
+      });
+
+      // For initial bulk sync (many changes), store individually to avoid size limits
+      if (changesWithOrders.length > 100) {
+        console.log(`Large sync detected (${changesWithOrders.length} changes), storing individually`);
+
+        // Store as individual change entries to avoid hitting row size limits
+        const timestamp = Date.now();
+        const changeEntries = [];
+
+        // Split into chunks of 50 changes per entry
+        for (let i = 0; i < changesWithOrders.length; i += 50) {
+          const chunk = changesWithOrders.slice(i, i + 50);
+          changeEntries.push({
+            timestamp: timestamp,
+            changes: chunk
+          });
+        }
+
+        // Add all chunks to changes array
+        changes.push(...changeEntries);
+      } else {
+        // Normal case: single change entry
+        const changeEntry = {
+          timestamp: Date.now(),
+          changes: changesWithOrders
+        };
+        changes.push(changeEntry);
+      }
+
+      // Keep only last 1000 change entries
+      while (changes.length > 1000) {
+        changes.shift();
+      }
+
+      changeCount += detectedChanges.length;
+
+      // Save to storage - chunk the changes array to avoid size limits
+      await this.storeChangesChunked(changes);
+      await this.state.storage.put('changeCount', changeCount);
+    }
+
+    // Update current state only if newData is provided
+    if (newData) {
+      // Store metadata separately from the large items array
+      const currentStateMeta = {
+        fetchedAt: newData.fetchedAt,
+        itemCount: newData.items?.length || 0
+      };
+      await this.state.storage.put('currentStateMeta', currentStateMeta);
+
+      // Store items list in chunks to avoid size limits
+      // Split into chunks of 500 items each
+      const items = newData.items || [];
+      const ITEMS_PER_CHUNK = 500;
+      const numChunks = Math.ceil(items.length / ITEMS_PER_CHUNK);
+
+      // Clear old item chunks
+      const oldItemChunks = await this.state.storage.list({ prefix: 'items_chunk_' });
+      for (const [key] of oldItemChunks) {
+        await this.state.storage.delete(key);
+      }
+
+      // Store new chunks
+      for (let i = 0; i < numChunks; i++) {
+        const chunk = items.slice(i * ITEMS_PER_CHUNK, (i + 1) * ITEMS_PER_CHUNK);
+        await this.state.storage.put(`items_chunk_${i}`, chunk);
+      }
+
+      await this.state.storage.put('lastUpdate', Date.now());
+    }
+
+    // Store order details individually to avoid SQLite row size limits
+    // Note: We no longer delete old entries automatically during updates.
+    // This allows for batched uploads where subsequent batches don't delete
+    // entries from previous batches. Cleanup should be done explicitly if needed.
+
+    // Store each item's order details separately
+    // Individual order details must be stored one at a time to avoid exceeding
+    // the 128KB per-value SQLite limit (some items have 100+ orders)
+    const orderEntries = Object.entries(orderDetails);
+    let storedCount = 0;
+    let skippedCount = 0;
+
+    for (const [itemId, details] of orderEntries) {
+      try {
+        // Check size before storing
+        const detailsSize = JSON.stringify(details).length;
+        if (detailsSize > 120000) { // 120KB limit to be safe
+          console.warn(`Order details for item ${itemId} too large (${detailsSize} bytes), skipping`);
+          skippedCount++;
+          continue;
+        }
+
+        await this.state.storage.put(`order_${itemId}`, details);
+        storedCount++;
+      } catch (error) {
+        console.error(`Failed to store order details for item ${itemId}:`, error.message);
+        skippedCount++;
+      }
+    }
+
+    console.log(`Stored ${storedCount} order details, skipped ${skippedCount}`);
+
+    return new Response(JSON.stringify({
+      success: true,
+      changesDetected: detectedChanges.length,
+      totalChanges: changeCount,
+      itemsWithOrderDetails: Object.keys(orderDetails).length
+    }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  /**
+   * Compare previous and current order details to detect added/removed orders
+   *
+   * Creates unique keys for each order using claimEntityId, ownerEntityId,
+   * regionId, priceThreshold, and quantity. The ownerEntityId is CRITICAL
+   * because multiple players from the same claim can create identical orders
+   * (same price, same quantity). Without ownerEntityId, these orders would
+   * be treated as duplicates and one would be lost in the Map.
+   *
+   * @param {Object|null} prevDetails - Previous order details (null on first run)
+   * @param {Object} currentDetails - Current order details
+   * @param {Array} currentDetails.sellOrders - Current sell orders
+   * @param {Array} currentDetails.buyOrders - Current buy orders
+   * @returns {Object} Diff result: {added: {sellOrders, buyOrders}, removed: {sellOrders, buyOrders}}
+   *
+   * @example
+   * const diff = diffOrders(prevDetails, currentDetails);
+   * console.log(diff.added.sellOrders);   // [newOrder]
+   * console.log(diff.removed.buyOrders);  // [removedOrder]
+   */
+  diffOrders(prevDetails, currentDetails) {
+    const added = { sellOrders: [], buyOrders: [] };
+    const removed = { sellOrders: [], buyOrders: [] };
+
+    if (!prevDetails) {
+      // All current orders are new
+      added.sellOrders = (currentDetails.sellOrders || []).map(order => ({
+        claimName: order.claimName,
+        claimEntityId: order.claimEntityId,
+        ownerName: order.ownerName || order.playerName,
+        ownerEntityId: order.ownerEntityId || order.playerEntityId,
+        quantity: order.quantity,
+        priceThreshold: order.priceThreshold,
+        regionId: order.regionId
+      }));
+      added.buyOrders = (currentDetails.buyOrders || []).map(order => ({
+        claimName: order.claimName,
+        claimEntityId: order.claimEntityId,
+        ownerName: order.ownerName || order.playerName,
+        ownerEntityId: order.ownerEntityId || order.playerEntityId,
+        quantity: order.quantity,
+        priceThreshold: order.priceThreshold,
+        regionId: order.regionId
+      }));
+      return { added, removed };
+    }
+
+    // Create order keys for comparison (claimEntityId + ownerEntityId + regionId + price + quantity for uniqueness)
+    const createOrderKey = (order) =>
+      `${order.claimEntityId || order.claimName}_${order.ownerEntityId || order.ownerName}_${order.regionId}_${order.priceThreshold}_${order.quantity}`;
+
+    // Diff sell orders
+    const prevSellKeys = new Map();
+    (prevDetails.sellOrders || []).forEach(order => {
+      prevSellKeys.set(createOrderKey(order), order);
+    });
+
+    const currSellKeys = new Map();
+    (currentDetails.sellOrders || []).forEach(order => {
+      currSellKeys.set(createOrderKey(order), order);
+    });
+
+    // Find added sell orders
+    for (const [key, order] of currSellKeys) {
+      if (!prevSellKeys.has(key)) {
+        added.sellOrders.push({
+          claimName: order.claimName,
+          claimEntityId: order.claimEntityId,
+          ownerName: order.ownerName || order.playerName,
+          ownerEntityId: order.ownerEntityId || order.playerEntityId,
+          quantity: order.quantity,
+          priceThreshold: order.priceThreshold,
+          regionId: order.regionId
+        });
+      }
+    }
+
+    // Find removed sell orders
+    for (const [key, order] of prevSellKeys) {
+      if (!currSellKeys.has(key)) {
+        removed.sellOrders.push({
+          claimName: order.claimName,
+          claimEntityId: order.claimEntityId,
+          ownerName: order.ownerName || order.playerName,
+          ownerEntityId: order.ownerEntityId || order.playerEntityId,
+          quantity: order.quantity,
+          priceThreshold: order.priceThreshold,
+          regionId: order.regionId
+        });
+      }
+    }
+
+    // Diff buy orders
+    const prevBuyKeys = new Map();
+    (prevDetails.buyOrders || []).forEach(order => {
+      prevBuyKeys.set(createOrderKey(order), order);
+    });
+
+    const currBuyKeys = new Map();
+    (currentDetails.buyOrders || []).forEach(order => {
+      currBuyKeys.set(createOrderKey(order), order);
+    });
+
+    // Find added buy orders
+    for (const [key, order] of currBuyKeys) {
+      if (!prevBuyKeys.has(key)) {
+        added.buyOrders.push({
+          claimName: order.claimName,
+          claimEntityId: order.claimEntityId,
+          ownerName: order.ownerName || order.playerName,
+          ownerEntityId: order.ownerEntityId || order.playerEntityId,
+          quantity: order.quantity,
+          priceThreshold: order.priceThreshold,
+          regionId: order.regionId
+        });
+      }
+    }
+
+    // Find removed buy orders
+    for (const [key, order] of prevBuyKeys) {
+      if (!currBuyKeys.has(key)) {
+        removed.buyOrders.push({
+          claimName: order.claimName,
+          claimEntityId: order.claimEntityId,
+          ownerName: order.ownerName || order.playerName,
+          ownerEntityId: order.ownerEntityId || order.playerEntityId,
+          quantity: order.quantity,
+          priceThreshold: order.priceThreshold,
+          regionId: order.regionId
+        });
+      }
+    }
+
+    return { added, removed };
+  }
+
+  /**
+   * Detect changes between previous and new market states
+   */
+  detectChanges(previousState, newState) {
+    const changes = [];
+
+    if (!previousState || !previousState.items) {
+      return changes; // First run, no changes to detect
+    }
+
+    // Create maps for quick lookup
+    const prevMap = new Map();
+    previousState.items.forEach(item => {
+      prevMap.set(item.id, item);
+    });
+
+    const newMap = new Map();
+    newState.items.forEach(item => {
+      newMap.set(item.id, item);
+    });
+
+    // Check all items in new state
+    for (const newItem of newState.items) {
+      const prevItem = prevMap.get(newItem.id);
+
+      if (!prevItem) {
+        // New item with orders appeared
+        if (newItem.totalOrders > 0) {
+          changes.push({
+            type: 'new_item',
+            itemId: newItem.id,
+            itemName: newItem.name,
+            sellOrders: newItem.sellOrders,
+            buyOrders: newItem.buyOrders,
+            totalOrders: newItem.totalOrders
+          });
+        }
+        continue;
+      }
+
+      // Check for changes in order counts
+      const sellOrderChange = newItem.sellOrders - prevItem.sellOrders;
+      const buyOrderChange = newItem.buyOrders - prevItem.buyOrders;
+      const totalOrderChange = newItem.totalOrders - prevItem.totalOrders;
+
+      if (sellOrderChange !== 0 || buyOrderChange !== 0 || totalOrderChange !== 0) {
+        changes.push({
+          type: 'order_change',
+          itemId: newItem.id,
+          itemName: newItem.name,
+          previous: {
+            sellOrders: prevItem.sellOrders,
+            buyOrders: prevItem.buyOrders,
+            totalOrders: prevItem.totalOrders
+          },
+          current: {
+            sellOrders: newItem.sellOrders,
+            buyOrders: newItem.buyOrders,
+            totalOrders: newItem.totalOrders
+          },
+          delta: {
+            sellOrders: sellOrderChange,
+            buyOrders: buyOrderChange,
+            totalOrders: totalOrderChange
+          }
+        });
+      }
+    }
+
+    // Check for items that disappeared (no longer have orders)
+    for (const prevItem of previousState.items) {
+      if (!newMap.has(prevItem.id) && prevItem.totalOrders > 0) {
+        changes.push({
+          type: 'item_removed',
+          itemId: prevItem.id,
+          itemName: prevItem.name,
+          previous: {
+            sellOrders: prevItem.sellOrders,
+            buyOrders: prevItem.buyOrders,
+            totalOrders: prevItem.totalOrders
+          }
+        });
+      }
+    }
+
+    return changes;
+  }
+
+  /**
+   * Reset state (for debugging)
+   */
+  async resetState() {
+    await this.state.storage.deleteAll();
+
+    return new Response(JSON.stringify({
+      success: true,
+      message: 'State reset successfully'
+    }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+/**
+ * Main Worker
+ */
+export default {
+  /**
+   * Handle fetch requests
+   */
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+
+    // Handle CORS preflight requests
+    if (request.method === 'OPTIONS') {
+      return handleOptions(request);
+    }
+
+    // Market Monitor API endpoints
+    if (url.pathname.startsWith('/api/monitor/')) {
+      // Manual trigger endpoint
+      if (url.pathname === '/api/monitor/trigger' && request.method === 'POST') {
+        return handleManualTrigger(env);
+      }
+      return handleMonitorRequest(request, env);
+    }
+
+    // Default: CORS proxy to bitjita.com
+    return handleProxyRequest(request, env);
+  },
+
+  /**
+   * Handle scheduled events (cron)
+   */
+  async scheduled(event, env, ctx) {
+    console.log('Cron triggered at:', new Date(event.scheduledTime).toISOString());
+
+    try {
+      // Get Durable Object instance
+      const id = env.MARKET_MONITOR.idFromName('global');
+      const stub = env.MARKET_MONITOR.get(id);
+
+      // Get current state for incremental update
+      const stateResponse = await stub.fetch(new Request('https://dummy/api/monitor/state'));
+      const stateData = await stateResponse.json();
+
+      // Incremental update - fetches changed items and gradually fills in missing items
+      console.log('Running incremental update...');
+
+      // Fetch current market data (list of items with orders)
+      const marketData = await fetchMarketData();
+      console.log(`Found ${marketData.items.length} items with orders`);
+
+      const previousState = stateData.currentState;
+      const previousOrderDetails = stateData.orderDetails || {};
+
+      // Detect which items have changes
+      const changedItemIds = detectChangedItemIds(previousState, marketData);
+      console.log(`Detected ${changedItemIds.length} changed items`);
+
+      // Build order details: keep previous data, fetch only changed items
+      const allItemIds = marketData.items.map(item => item.id);
+      let orderDetails = { ...previousOrderDetails };
+
+      // Remove items that no longer have orders
+      // Note: allItemIds are strings from the API
+      for (const key of Object.keys(orderDetails)) {
+        if (!allItemIds.includes(key) && !allItemIds.includes(String(key))) {
+          delete orderDetails[key];
+        }
+      }
+
+      // Fetch order details for changed items AND items we don't have details for yet
+      // Limit to 40 items per run to stay under Cloudflare's 50 subrequest limit
+      const MAX_ITEMS_PER_RUN = 40;
+
+      // Find items we don't have order details for yet
+      const missingDetailIds = allItemIds.filter(id => !orderDetails[id] && !orderDetails[String(id)]);
+
+      // PRIORITY 1: Changed items (always fetch these to get accurate diff)
+      // PRIORITY 2: Missing items (items we've never fetched before)
+      // This ensures that when we detect a change, we can show detailed added/removed orders
+      const itemIdsToFetch = [
+        ...changedItemIds, // All changed items first
+        ...missingDetailIds.filter(id => !changedItemIds.includes(id)) // Then missing items
+      ].slice(0, MAX_ITEMS_PER_RUN); // Limit to max per run
+
+      if (itemIdsToFetch.length > 0) {
+        console.log(`Fetching order details for ${itemIdsToFetch.length} items (${changedItemIds.length} changed, ${missingDetailIds.length} missing)`);
+        // Get full item objects with itemType for the fetch
+        const itemsToFetch = marketData.items.filter(item => itemIdsToFetch.includes(item.id));
+        const fetchedOrderDetails = await fetchOrdersForItems(itemsToFetch);
+        // Merge fetched items into full order details
+        orderDetails = { ...orderDetails, ...fetchedOrderDetails };
+        console.log(`Updated order details for ${Object.keys(fetchedOrderDetails).length} items`);
+      }
+
+      // Limit total stored order details to prevent storage bloat
+      // Keep only the most recently updated items (up to 500)
+      const MAX_STORED_ITEMS = 500;
+      if (Object.keys(orderDetails).length > MAX_STORED_ITEMS) {
+        console.log(`Pruning order details from ${Object.keys(orderDetails).length} to ${MAX_STORED_ITEMS}`);
+
+        // Sort by item presence in current market data (keep active items)
+        const activeItemIds = new Set(allItemIds);
+        const sortedKeys = Object.keys(orderDetails).sort((a, b) => {
+          const aActive = activeItemIds.has(a) || activeItemIds.has(String(a));
+          const bActive = activeItemIds.has(b) || activeItemIds.has(String(b));
+          if (aActive && !bActive) return -1;
+          if (!aActive && bActive) return 1;
+          return 0;
+        });
+
+        // Keep only top MAX_STORED_ITEMS
+        const prunedDetails = {};
+        sortedKeys.slice(0, MAX_STORED_ITEMS).forEach(key => {
+          prunedDetails[key] = orderDetails[key];
+        });
+        orderDetails = prunedDetails;
+      }
+
+      console.log(`Total order details: ${Object.keys(orderDetails).length} items`);
+
+      // Update state with market data and order details
+      const response = await stub.fetch(new Request('https://dummy/api/monitor/update', {
+        method: 'POST',
+        body: JSON.stringify({
+          marketData: marketData,
+          orderDetails: orderDetails
+        }),
+        headers: { 'Content-Type': 'application/json' }
+      }));
+
+      const result = await response.json();
+      console.log('Market update result:', result);
+    } catch (error) {
+      console.error('Error in scheduled task:', error);
+    }
+  }
+};
+
+/**
+ * Handle manual trigger of market update (same as cron)
+ */
+async function handleManualTrigger(env) {
+  try {
+    console.log('Manual trigger at:', new Date().toISOString());
+
+    // Fetch current market data (list of items with orders)
+    const marketData = await fetchMarketData();
+    console.log(`Found ${marketData.items.length} items with orders`);
+
+    // Get Durable Object instance
+    const id = env.MARKET_MONITOR.idFromName('global');
+    const stub = env.MARKET_MONITOR.get(id);
+
+    // Get previous state to detect changes
+    const stateResponse = await stub.fetch(new Request('https://dummy/api/monitor/state'));
+    const stateData = await stateResponse.json();
+    const previousState = stateData.currentState;
+    const previousOrderDetails = stateData.orderDetails || {};
+
+    // Detect which items have changes
+    const changedItemIds = detectChangedItemIds(previousState, marketData);
+    console.log(`Detected ${changedItemIds.length} changed items`);
+
+    // Build order details: keep previous data, fetch only changed items
+    const allItemIds = marketData.items.map(item => item.id);
+    let orderDetails = { ...previousOrderDetails };
+
+    // Remove items that no longer have orders
+    // Note: allItemIds are strings from the API
+    for (const key of Object.keys(orderDetails)) {
+      if (!allItemIds.includes(key) && !allItemIds.includes(String(key))) {
+        delete orderDetails[key];
+      }
+    }
+
+    // Fetch order details for changed items AND items we don't have details for yet
+    // Limit to 40 items per run to stay under Cloudflare's 50 subrequest limit
+    const MAX_ITEMS_PER_RUN = 40;
+
+    // Find items we don't have order details for yet
+    const missingDetailIds = allItemIds.filter(id => !orderDetails[id] && !orderDetails[String(id)]);
+
+    // PRIORITY 1: Changed items (always fetch these to get accurate diff)
+    // PRIORITY 2: Missing items (items we've never fetched before)
+    // This ensures that when we detect a change, we can show detailed added/removed orders
+    const itemIdsToFetch = [
+      ...changedItemIds, // All changed items first
+      ...missingDetailIds.filter(id => !changedItemIds.includes(id)) // Then missing items
+    ].slice(0, MAX_ITEMS_PER_RUN); // Limit to max per run
+
+    if (itemIdsToFetch.length > 0) {
+      console.log(`Fetching order details for ${itemIdsToFetch.length} items (${changedItemIds.length} changed, ${missingDetailIds.length} missing)`);
+      // Get full item objects with itemType for the fetch
+      const itemsToFetch = marketData.items.filter(item => itemIdsToFetch.includes(item.id));
+      const fetchedOrderDetails = await fetchOrdersForItems(itemsToFetch);
+      // Merge fetched items into full order details
+      orderDetails = { ...orderDetails, ...fetchedOrderDetails };
+      console.log(`Updated order details for ${Object.keys(fetchedOrderDetails).length} items`);
+    }
+
+    // Limit total stored order details to prevent storage bloat
+    // Keep only the most recently updated items (up to 500)
+    const MAX_STORED_ITEMS = 500;
+    if (Object.keys(orderDetails).length > MAX_STORED_ITEMS) {
+      console.log(`Pruning order details from ${Object.keys(orderDetails).length} to ${MAX_STORED_ITEMS}`);
+
+      // Sort by item presence in current market data (keep active items)
+      const activeItemIds = new Set(allItemIds);
+      const sortedKeys = Object.keys(orderDetails).sort((a, b) => {
+        const aActive = activeItemIds.has(a) || activeItemIds.has(String(a));
+        const bActive = activeItemIds.has(b) || activeItemIds.has(String(b));
+        if (aActive && !bActive) return -1;
+        if (!aActive && bActive) return 1;
+        return 0;
+      });
+
+      // Keep only top MAX_STORED_ITEMS
+      const prunedDetails = {};
+      sortedKeys.slice(0, MAX_STORED_ITEMS).forEach(key => {
+        prunedDetails[key] = orderDetails[key];
+      });
+      orderDetails = prunedDetails;
+    }
+
+    console.log(`Total order details: ${Object.keys(orderDetails).length} items`);
+
+    // Update state with market data and order details
+    const response = await stub.fetch(new Request('https://dummy/api/monitor/update', {
+      method: 'POST',
+      body: JSON.stringify({
+        marketData: marketData,
+        orderDetails: orderDetails
+      }),
+      headers: { 'Content-Type': 'application/json' }
+    }));
+
+    const result = await response.json();
+    console.log('Market update result:', result);
+
+    return new Response(JSON.stringify({
+      success: true,
+      ...result,
+      triggeredAt: new Date().toISOString()
+    }), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      }
+    });
+  } catch (error) {
+    console.error('Error in manual trigger:', error);
+    return new Response(JSON.stringify({
+      error: 'Manual trigger failed',
+      message: error.message
+    }), {
+      status: 500,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      }
+    });
+  }
+}
+
+
+/**
+ * Handle monitor API requests
+ */
+async function handleMonitorRequest(request, env) {
+  try {
+    // Get Durable Object instance (single global instance)
+    const id = env.MARKET_MONITOR.idFromName('global');
+    const stub = env.MARKET_MONITOR.get(id);
+
+    // Forward request to Durable Object
+    const response = await stub.fetch(request);
+
+    // Add CORS headers
+    const newResponse = new Response(response.body, response);
+    addCorsHeaders(newResponse);
+
+    return newResponse;
+  } catch (error) {
+    return new Response(JSON.stringify({
+      error: 'Monitor API error',
+      message: error.message
+    }), {
+      status: 500,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      }
+    });
+  }
+}
+
+/**
+ * Handle proxy requests to bitjita.com
+ */
+async function handleProxyRequest(request, env) {
+  const url = new URL(request.url);
+
+  try {
+    // Build the target URL
+    const targetUrl = TARGET_API + url.pathname + url.search;
+
+    console.log(`Proxying ${request.method} request to: ${targetUrl}`);
+
+    // Create new request with same method, headers, and body
+    const proxyRequest = new Request(targetUrl, {
+      method: request.method,
+      headers: request.headers,
+      body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : null,
+    });
+
+    // Forward the request to the target API
+    const response = await fetch(proxyRequest);
+
+    // Create a new response with CORS headers
+    const newResponse = new Response(response.body, response);
+    addCorsHeaders(newResponse);
+
+    return newResponse;
+
+  } catch (error) {
+    // Return error with CORS headers
+    return new Response(JSON.stringify({
+      error: 'Proxy error',
+      message: error.message
+    }), {
+      status: 500,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      }
+    });
+  }
+}
+
+/**
+ * Detect which item IDs have changes between previous and new market states
+ * (Standalone function for use in cron before updating Durable Object)
+ */
+function detectChangedItemIds(previousState, newState) {
+  const changedIds = [];
+
+  if (!previousState || !previousState.items) {
+    return changedIds; // First run, no changes to detect
+  }
+
+  // Create maps for quick lookup
+  const prevMap = new Map();
+  previousState.items.forEach(item => {
+    prevMap.set(item.id, item);
+  });
+
+  const newMap = new Map();
+  newState.items.forEach(item => {
+    newMap.set(item.id, item);
+  });
+
+  // Check all items in new state
+  for (const newItem of newState.items) {
+    const prevItem = prevMap.get(newItem.id);
+
+    if (!prevItem) {
+      // New item appeared
+      if (newItem.totalOrders > 0) {
+        changedIds.push(newItem.id);
+      }
+      continue;
+    }
+
+    // Check for changes in order counts
+    const sellOrderChange = newItem.sellOrders - prevItem.sellOrders;
+    const buyOrderChange = newItem.buyOrders - prevItem.buyOrders;
+    const totalOrderChange = newItem.totalOrders - prevItem.totalOrders;
+
+    if (sellOrderChange !== 0 || buyOrderChange !== 0 || totalOrderChange !== 0) {
+      changedIds.push(newItem.id);
+    }
+  }
+
+  // Check for items that disappeared
+  for (const prevItem of previousState.items) {
+    if (!newMap.has(prevItem.id) && prevItem.totalOrders > 0) {
+      changedIds.push(prevItem.id);
+    }
+  }
+
+  return changedIds;
+}
+
+/**
+ * Fetch market data from bitjita API
+ */
+async function fetchMarketData() {
+  // Fetch all items with orders (no claim filter - we'll filter by region instead)
+  const apiUrl = `${TARGET_API}/api/market?hasOrders=true`;
+
+  const response = await fetch(apiUrl);
+
+  if (!response.ok) {
+    throw new Error(`API returned ${response.status}: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+
+  return {
+    items: data.data?.items || [],
+    fetchedAt: Date.now()
+  };
+}
+
+/**
+ * Fetch full order details for a specific item or cargo
+ * @param {number} itemId - The item/cargo ID
+ * @param {number} itemType - The item type (1 for cargo, other values for regular items)
+ */
+async function fetchItemOrders(itemId, itemType = 0) {
+  // Use cargo endpoint if itemType is 1, otherwise use item endpoint
+  const endpoint = itemType === 1 ? 'cargo' : 'item';
+  const apiUrl = `${TARGET_API}/api/market/${endpoint}/${itemId}`;
+
+  const response = await fetch(apiUrl);
+
+  if (!response.ok) {
+    console.error(`Failed to fetch orders for ${endpoint} ${itemId}: ${response.status}`);
+    return null;
+  }
+
+  const data = await response.json();
+
+  // Filter orders to only include those from the monitored region (Solvenar)
+  const sellOrders = (data.sellOrders || []).filter(order => order.regionId === MONITOR_REGION_ID);
+  const buyOrders = (data.buyOrders || []).filter(order => order.regionId === MONITOR_REGION_ID);
+
+  // Minimize stored data - only keep essential fields
+  const minimalSellOrders = sellOrders.map(o => ({
+    claimName: o.claimName,
+    claimEntityId: o.claimEntityId,
+    ownerName: o.ownerName || o.ownerUsername,
+    ownerEntityId: o.ownerEntityId,
+    quantity: o.quantity,
+    priceThreshold: o.priceThreshold,
+    regionId: o.regionId
+  }));
+
+  const minimalBuyOrders = buyOrders.map(o => ({
+    claimName: o.claimName,
+    claimEntityId: o.claimEntityId,
+    ownerName: o.ownerName || o.ownerUsername,
+    ownerEntityId: o.ownerEntityId,
+    quantity: o.quantity,
+    priceThreshold: o.priceThreshold,
+    regionId: o.regionId
+  }));
+
+  // Store minimal stats (not the full object)
+  const minimalStats = {
+    lowestSell: data.stats?.lowestSell || null,
+    highestBuy: data.stats?.highestBuy || null,
+    totalAvailableSell: data.stats?.totalAvailableSell || 0,
+    totalAvailableBuy: data.stats?.totalAvailableBuy || 0
+  };
+
+  return {
+    itemId: itemId,
+    sellOrders: minimalSellOrders,
+    buyOrders: minimalBuyOrders,
+    stats: minimalStats
+  };
+}
+
+/**
+ * Fetch order details for multiple items (with rate limiting)
+ * @param {Array} items - Array of item objects with id and itemType properties
+ */
+async function fetchOrdersForItems(items) {
+  const results = {};
+
+  console.log(`Need to fetch ${items.length} items`);
+
+  // Fetch in batches of 40 to stay under Cloudflare's 50 subrequest limit
+  const batchSize = 40;
+  const delayBetweenBatches = 100; // ms
+
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    const promises = batch.map(item => fetchItemOrders(item.id, item.itemType));
+    const batchResults = await Promise.all(promises);
+
+    batchResults.forEach(result => {
+      if (result) {
+        results[result.itemId] = result;
+      }
+    });
+
+    // Log progress every 50 items
+    if (items.length > 20 && (i + batchSize) % 50 === 0) {
+      console.log(`Fetched ${Math.min(i + batchSize, items.length)}/${items.length} items`);
+    }
+
+    // Delay between batches to stay under rate limit
+    if (i + batchSize < items.length) {
+      await new Promise(resolve => setTimeout(resolve, delayBetweenBatches));
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Add CORS headers to response
+ */
+function addCorsHeaders(response) {
+  response.headers.set('Access-Control-Allow-Origin', '*');
+  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+}
+
+/**
+ * Handle CORS preflight OPTIONS requests
+ */
+function handleOptions(request) {
+  const headers = request.headers;
+
+  // Make sure the necessary headers are present for this to be a valid pre-flight request
+  if (
+    headers.get('Origin') !== null &&
+    headers.get('Access-Control-Request-Method') !== null &&
+    headers.get('Access-Control-Request-Headers') !== null
+  ) {
+    // Handle CORS preflight request
+    return new Response(null, {
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': headers.get('Access-Control-Request-Headers'),
+        'Access-Control-Max-Age': '86400', // 24 hours
+      }
+    });
+  } else {
+    // Handle standard OPTIONS request
+    return new Response(null, {
+      headers: {
+        'Allow': 'GET, POST, PUT, DELETE, OPTIONS',
+      }
+    });
+  }
+}
