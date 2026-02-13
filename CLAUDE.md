@@ -510,7 +510,7 @@ node local-monitor.js setup
 node local-monitor.js monitor
 ```
 
-See [QUICK-START.md](QUICK-START.md) for details.
+See [docs/local-monitor.md](docs/local-monitor.md) for details.
 
 ### For Developers - Local Monitor Development
 
@@ -536,20 +536,16 @@ node local-monitor.js debug "Claim Name"
 node local-monitor.js monitor
 ```
 
-See [LOCAL-MONITOR-QUICKREF.md](LOCAL-MONITOR-QUICKREF.md) for all commands.
+See [docs/local-monitor.md](docs/local-monitor.md) for all commands.
 
 ## Key Files and Documentation
 
-### User Guides
-- [QUICK-START.md](QUICK-START.md) - Fix missing orders in 1 command
-- [LOCAL-MONITOR-QUICKREF.md](LOCAL-MONITOR-QUICKREF.md) - Command reference
-- [SYNC-WORKFLOW.md](SYNC-WORKFLOW.md) - Detailed sync workflow
-- [FETCH-ALL-GUIDE.md](FETCH-ALL-GUIDE.md) - Alternative manual approach
-
-### Technical Documentation
-- [LOCAL-MONITOR-README.md](LOCAL-MONITOR-README.md) - Local monitor details
-- [BULK-UPDATE-GUIDE.md](BULK-UPDATE-GUIDE.md) - Bulk API explanation
-- [QUICK-DEBUG-GUIDE.md](QUICK-DEBUG-GUIDE.md) - Debugging orders
+### Guides (in docs/)
+- [docs/local-monitor.md](docs/local-monitor.md) - Local monitor commands, debugging, bulk API
+- [docs/supabase-setup.md](docs/supabase-setup.md) - Supabase database setup
+- [docs/cloudflare-setup.md](docs/cloudflare-setup.md) - Cloudflare Worker CORS proxy setup
+- [docs/troubleshooting.md](docs/troubleshooting.md) - Common issues and fix history
+- [docs/architecture.md](docs/architecture.md) - System architecture and migration history
 
 ### Core Files
 - `local-monitor.js` - Main local monitor (2 automated modes + manual tools, syncs to Supabase)

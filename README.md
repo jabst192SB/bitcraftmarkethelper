@@ -1,115 +1,96 @@
-# 🎮 Bitcraft Market Helper
+# Bitcraft Market Helper
 
 A lightweight web application for browsing Bitcraft market data with real-time API integration.
 
-## 🌐 Deployment Options
+## Deployment Options
 
 ### Option 1: GitHub Pages (Recommended for Hosting)
-**Perfect for public deployment!** Deploy to GitHub Pages with Cloudflare Workers as a free API proxy.
 
-📖 **[Complete Setup Guide](CLOUDFLARE_SETUP.md)** - Follow this guide to deploy to GitHub Pages (5-10 minutes)
+Deploy to GitHub Pages with Cloudflare Workers as a free API proxy.
 
-**Benefits:**
-- ✅ Free hosting on GitHub Pages
-- ✅ Free API proxy via Cloudflare Workers (100,000 requests/day)
-- ✅ No server maintenance required
-- ✅ Global CDN for fast loading
-- ✅ Accessible from anywhere
+**[Cloudflare Setup Guide](docs/cloudflare-setup.md)**
+
+- Free hosting on GitHub Pages
+- Free API proxy via Cloudflare Workers (100,000 requests/day)
+- No server maintenance required
 
 ### Option 2: Local Development
-Run the app locally on your computer using the Python proxy server.
 
-## 🚀 Quick Start (Local Development)
+Run the app locally using the Python proxy server.
+
+## Quick Start (Local Development)
 
 ### Method 1: Double-Click Start (Easiest)
-1. **Double-click `start-server.bat`**
-2. The application will automatically open in your browser
+1. Double-click `start-server.bat`
+2. The application opens in your browser
 3. Keep the command window open while using the app
-4. Press `Ctrl+C` in the command window when done
 
-### Method 2: Manual Python Server (Recommended)
-If you have Python installed:
+### Method 2: Manual Python Server
 1. Open Command Prompt or PowerShell in this folder
 2. Run: `python proxy-server.py`
 3. Open browser to: http://localhost:8000
 
-**Note**: The proxy server is required to bypass CORS restrictions from the Bitjita API.
+The proxy server is required to bypass CORS restrictions from the Bitjita API.
 
-## 📋 Features
+## Market Monitoring
 
-- **Item Search**: Typeahead search with up to 10 results
-- **Tier Filtering**: Filter items by tier (default: All Tiers)
-- **Market Statistics**: View lowest sell, highest buy, and recent order counts
-- **Buy/Sell Orders**: Two-column layout for easy comparison
-- **Region Filtering**: Default to Solvenar (Region 4), toggle for all regions
-- **Copy to Clipboard**: Click 📋 icons to copy any price
+To populate and keep the market monitor updated:
 
-## 🔧 Requirements
+```bash
+# Initial setup (~15-20 minutes)
+node local-monitor.js setup
 
-- **Browser**: Any modern browser (Chrome, Firefox, Edge)
-- **Web Server**: Python OR Node.js (for running locally)
-  - Python: https://www.python.org/downloads/
-  - Node.js: https://nodejs.org/
-
-## 🐛 Troubleshooting
-
-### "Failed to load items.json"
-This happens when opening `index.html` directly without a web server.
-**Solution**: Use the `start-server.bat` or run `python proxy-server.py`.
-
-### CORS Error / API requests failing
-The Bitjita API doesn't allow direct browser requests due to CORS restrictions.
-**Solution**: You MUST use the proxy server (`proxy-server.py`) instead of a basic HTTP server. The `start-server.bat` file automatically uses the correct server.
-
-### Batch file doesn't work
-Make sure you have Python installed on your system.
-**Download**: https://www.python.org/downloads/
-
-### Port already in use
-If port 8000 is already in use, you can edit `proxy-server.py` and change the port number in the last line:
-```python
-run_server(8001)  # Change 8000 to 8001 or any available port
+# Continuous monitoring (keep running)
+node local-monitor.js monitor
 ```
 
-## 📖 Usage
+See the [Local Monitor Guide](docs/local-monitor.md) for all commands and options.
 
-1. Start the web server using any method above
-2. Type an item name in the search box
-3. (Optional) Select a specific tier from the dropdown
-4. Click on an item from the typeahead results
-5. View market statistics and orders
-6. Click 📋 icons next to prices to copy to clipboard
-7. Toggle "Show all regions" to see orders from all regions
+## Features
 
-## 💡 Tips
+- **Item Search**: Typeahead search with tier filtering
+- **Market Statistics**: Lowest sell, highest buy, and order counts
+- **Buy/Sell Orders**: Two-column layout with claim names
+- **Region Filtering**: Default to Solvenar (Region 4)
+- **Gear Finder**: Advanced filtering by tier, category, and rarity
+- **Market Monitor**: Real-time change detection via Supabase
 
-- Results are sorted by tier (ascending) in the typeahead
-- Default region filter is Solvenar (Region 4)
-- All prices can be copied with a single click
-- The application automatically updates when you change filters
+## Requirements
 
-## 📁 Repository Files
+- **Browser**: Chrome, Firefox, or Edge
+- **Local development**: Python 3 (for proxy server)
+- **Market monitoring**: Node.js 18+ (for local monitor)
 
-- **`index.html`** - Main market search page
-- **`gear-finder.html`** - Gear finder / market analyzer page
-- **`items.json`** - Item database (2.5MB)
-- **`proxy-server.py`** - Local Python CORS proxy server (for local development)
-- **`cloudflare-worker.js`** - Cloudflare Worker proxy script (for GitHub Pages)
-- **`wrangler.toml`** - Cloudflare Worker configuration
-- **`CLOUDFLARE_SETUP.md`** - Complete guide for deploying to GitHub Pages
-- **`start-server.bat`** - Windows batch file for easy local startup
+## Documentation
 
-## 🔄 Switching Between Local and GitHub Pages
+| Guide | Description |
+|-------|-------------|
+| [Local Monitor](docs/local-monitor.md) | Fetching and syncing market data |
+| [Supabase Setup](docs/supabase-setup.md) | Database backend for market monitoring |
+| [Cloudflare Setup](docs/cloudflare-setup.md) | CORS proxy deployment |
+| [Troubleshooting](docs/troubleshooting.md) | Common issues and fixes |
+| [Architecture](docs/architecture.md) | System design and migration history |
 
-The app automatically detects whether to use local or remote API:
+## Repository Files
 
-- **Local Development**: `API_BASE_URL = ''` (empty string) - uses `/api/` paths handled by `proxy-server.py`
-- **GitHub Pages**: `API_BASE_URL = 'https://bitcraft-market-proxy.jbaird-cb6.workers.dev'` - uses your Cloudflare Worker
+- `index.html` - Main market search page
+- `gear-finder.html` - Gear finder / market analyzer
+- `market-monitor.html` - Market order monitor
+- `dashboard.html` - Dashboard overview
+- `help.html` - Help & FAQ
+- `items.json` - Item database (2.5MB)
+- `proxy-server.py` - Local Python CORS proxy
+- `cloudflare-worker.js` - Cloudflare Worker CORS proxy
+- `local-monitor.js` - Local market monitor (syncs to Supabase)
+- `supabase-client.js` - Supabase REST API client
 
-To switch, simply update the `API_BASE_URL` constant at the top of `index.html`, `gear-finder.html`, and `market-monitor.html`.
+## Switching Between Local and GitHub Pages
 
-**Current Configuration:** This repository is configured for GitHub Pages with the worker URL `https://bitcraft-market-proxy.jbaird-cb6.workers.dev`
+- **Local Development**: `API_BASE_URL = ''` in HTML files
+- **GitHub Pages**: `API_BASE_URL = 'https://bitcraft-market-proxy.jbaird-cb6.workers.dev'`
+
+Update `API_BASE_URL` at the top of `index.html`, `gear-finder.html`, and `market-monitor.html`.
 
 ---
 
-Built with vanilla HTML, CSS, and JavaScript for maximum simplicity and performance.
+Built with vanilla HTML, CSS, and JavaScript.
